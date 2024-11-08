@@ -1,7 +1,7 @@
-from leaderboards.trojai_config import TrojaiConfig
+from leaderboards.test_harness_config import TestHarnessConfig
 from leaderboards.actor import ActorManager, Actor
 from leaderboards.leaderboard import *
-from leaderboards.mail_io import TrojaiMail
+from leaderboards.mail_io import VLINCSMail
 from leaderboards.drive_io import DriveIO
 from leaderboards import json_io
 from leaderboards import hash_utils
@@ -13,12 +13,12 @@ import os
 import subprocess
 
 
-def main(trojai_config: TrojaiConfig, leaderboard: Leaderboard, data_split_name: str,
+def main(test_harness_config: TestHarnessConfig, leaderboard: Leaderboard, data_split_name: str,
          vm_name: str, team_name: str, team_email: str, submission_filepath: str, result_dirpath: str,
          custom_remote_home=None, custom_remote_scratch=None, job_id=None,
          custom_metaparameter_filepath=None, subset_model_ids=None, custom_evaluate_python_env_filepath=None):
 
-    actor_manager = ActorManager.load_json(trojai_config)
+    actor_manager = ActorManager.load_json(test_harness_config)
     actor = actor_manager.get_from_name(team_name)
 
     logging.info('**************************************************')
@@ -43,13 +43,13 @@ def main(trojai_config: TrojaiConfig, leaderboard: Leaderboard, data_split_name:
         if vm_name == Task.LOCAL_VM_IP:
             vm_ip = Task.LOCAL_VM_IP
         else:
-            vm_ip = trojai_config.vms[vm_name]
+            vm_ip = test_harness_config.vms[vm_name]
     except:
         msg = 'VM "{}" ended up in the wrong SLURM queue.\n{}'.format(vm_name, traceback.format_exc())
         errors += ":VM:"
         logging.error(msg)
-        logging.error('config: "{}"'.format(trojai_config))
-        TrojaiMail().send(to='trojai@nist.gov', subject='VM "{}" In Wrong SLURM Queue'.format(vm_name), message=msg)
+        logging.error('config: "{}"'.format(test_harness_config))
+        VLINCSMail().send(to='vlincs@nist.gov', subject='VM "{}" In Wrong SLURM Queue'.format(vm_name), message=msg)
         raise
 
 
@@ -59,7 +59,7 @@ def main(trojai_config: TrojaiConfig, leaderboard: Leaderboard, data_split_name:
         custom_remote_scratch_with_job_id = os.path.join(custom_remote_scratch, job_id)
 
     if custom_evaluate_python_env_filepath is None:
-        custom_evaluate_python_env_filepath = trojai_config.evaluate_python_env
+        custom_evaluate_python_env_filepath = test_harness_config.evaluate_python_env
     task : Task = leaderboard.task
     dataset = leaderboard.get_dataset(data_split_name)
     train_dataset = None
@@ -72,7 +72,7 @@ def main(trojai_config: TrojaiConfig, leaderboard: Leaderboard, data_split_name:
         submission_dir = os.path.dirname(submission_filepath)
         submission_name = os.path.basename(submission_filepath)
 
-        g_drive = DriveIO(trojai_config.token_pickle_filepath)
+        g_drive = DriveIO(test_harness_config.token_pickle_filepath)
         g_drive_file = g_drive.submission_download(team_email, submission_dir, submission_metadata_filepath, leaderboard.name, data_split_name)
 
         if submission_name != g_drive_file.name:
@@ -81,14 +81,14 @@ def main(trojai_config: TrojaiConfig, leaderboard: Leaderboard, data_split_name:
             submission_filepath = os.path.join(submission_dir, submission_name)
 
         # Scan download
-        if trojai_config.scanner_script_filepath is not None:
+        if test_harness_config.scanner_script_filepath is not None:
             logging.info('Scanning submission {}'.format(submission_filepath))
             try:
-                subprocess.run([trojai_config.scanner_script_filepath, submission_filepath], check=True)
+                subprocess.run([test_harness_config.scanner_script_filepath, submission_filepath], check=True)
             except subprocess.CalledProcessError as e:
                 logging.error('Scan FAILED')
                 logging.error(str(e))
-                TrojaiMail().send(to='trojai@nist.gov', subject='Scan failed for submission',
+                VLINCSMail().send(to='vlincs@nist.gov', subject='Scan failed for submission',
                                   message='Scan failed for {}\n\n{}'.format(submission_filepath, str(e)))
                 os.remove(submission_filepath)
                 raise
@@ -110,11 +110,11 @@ def main(trojai_config: TrojaiConfig, leaderboard: Leaderboard, data_split_name:
     errors += schema_errors
 
 
-    if actor.type == 'performer' and (submission_errors or schema_errors) and team_name != 'trojai-example':
+    if actor.type == 'performer' and (submission_errors or schema_errors) and team_name != 'vlincs-example':
         logging.info('Failed submission and/or schema checks. Aborting execution.')
     else:
         # Step 4b) Copy in environment to VM
-        errors += task.copy_in_env(vm_ip, vm_name, trojai_config, custom_remote_home, custom_remote_scratch_with_job_id)
+        errors += task.copy_in_env(vm_ip, vm_name, test_harness_config, custom_remote_home, custom_remote_scratch_with_job_id)
 
         # Step 5) Run basic VM cleanups (scratch)
         errors += task.cleanup_vm(vm_ip, vm_name, custom_remote_home, custom_remote_scratch_with_job_id)
@@ -210,8 +210,8 @@ if __name__ == '__main__':
     parser.add_argument('--result-dirpath', type=str,
                         help='The result directory for the team',
                         required=True)
-    parser.add_argument('--trojai-config-filepath', type=str,
-                        help='The JSON file that describes the trojai round',
+    parser.add_argument('--test-harness-config-filepath', type=str,
+                        help='The JSON file that describes the test harness',
                         default='config.json')
     parser.add_argument('--leaderboard-name', type=str,
                         help='The name of the leaderboards')
@@ -235,11 +235,11 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    trojai_config = TrojaiConfig.load_json(args.trojai_config_filepath)
+    test_harness_config = TestHarnessConfig.load_json(args.test_harness_config_filepath)
 
-    leaderboard = Leaderboard.load_json(trojai_config, args.leaderboard_name)
+    leaderboard = Leaderboard.load_json(test_harness_config, args.leaderboard_name)
 
-    main(trojai_config, leaderboard, args.data_split_name, args.vm_name, args.team_name, args.team_email,
+    main(test_harness_config, leaderboard, args.data_split_name, args.vm_name, args.team_name, args.team_email,
          args.container_filepath, args.result_dirpath, args.custom_remote_home, args.custom_remote_scratch, args.job_id,
          args.custom_metaparameters_filepath, args.model_ids_subset, args.custom_evaluate_python_env_filepath)
 

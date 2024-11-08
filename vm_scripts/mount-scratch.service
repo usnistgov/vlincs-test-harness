@@ -8,7 +8,7 @@ Type=oneshot
 RemainAfterExit=yes
 ExecStart=/sbin/mkfs.ext4 -F /dev/vdb1
 ExecStart=/bin/mount -t ext4 /dev/vdb1 /mnt/scratch
-ExecStart=/bin/chown trojai-user:trojai-user /mnt/scratch
+ExecStart=/bin/chown vlincs-user:vlincs-user /mnt/scratch
 
 [Install]
 WantedBy=multi-user.target

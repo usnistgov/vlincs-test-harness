@@ -29,7 +29,7 @@ if __name__ == "__main__":
                         default='token.pickle')
     parser.add_argument('--credentials-filepath',
                         type=str,
-                        help='Path to the credentials.json file holding the Google Cloud Project with API access to trojai@nist.gov Google Drive.',
+                        help='Path to the credentials.json file holding the Google Cloud Project with API access to vlincs@nist.gov Google Drive.',
                         default='credentials.json')
 
     args = parser.parse_args()

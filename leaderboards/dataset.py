@@ -1,4 +1,4 @@
-from leaderboards.trojai_config import TrojaiConfig
+from leaderboards.test_harness_config import TestHarnessConfig
 import os
 import copy
 
@@ -14,7 +14,7 @@ class Dataset(object):
     METADATA_NAME = 'METADATA.csv'
     GROUND_TRUTH_NAME = 'ground_truth.csv'
 
-    def __init__(self, trojai_config: TrojaiConfig,
+    def __init__(self, test_harness_config: TestHarnessConfig,
                  leaderboard_name: str,
                  split_name: str,
                  can_submit: bool,
@@ -27,8 +27,8 @@ class Dataset(object):
 
         self.split_name = split_name
         self.dataset_name = self.get_dataset_name()
-        self.dataset_dirpath: str = os.path.join(trojai_config.datasets_dirpath, leaderboard_name, self.dataset_name)
-        self.results_dirpath = os.path.join(trojai_config.results_dirpath, '{}-dataset'.format(leaderboard_name), self.dataset_name)
+        self.dataset_dirpath: str = os.path.join(test_harness_config.datasets_dirpath, leaderboard_name, self.dataset_name)
+        self.results_dirpath = os.path.join(test_harness_config.results_dirpath, '{}-dataset'.format(leaderboard_name), self.dataset_name)
         self.can_submit = can_submit
         self.slurm_queue_name = slurm_queue_name
         self.slurm_nice = slurm_nice
@@ -39,7 +39,7 @@ class Dataset(object):
         self.source_dataset_dirpath = None
 
         if has_source_data:
-            self.source_dataset_dirpath = os.path.join(trojai_config.datasets_dirpath, leaderboard_name, '{}'.format(Dataset.SOURCE_DATA_NAME))
+            self.source_dataset_dirpath = os.path.join(test_harness_config.datasets_dirpath, leaderboard_name, '{}'.format(Dataset.SOURCE_DATA_NAME))
 
         self.auto_delete_submission = auto_delete_submission
         self.auto_execute_split_names = []

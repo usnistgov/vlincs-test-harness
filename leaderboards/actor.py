@@ -11,7 +11,7 @@ from leaderboards import json_io
 from leaderboards import slurm
 from leaderboards import time_utils
 from leaderboards.leaderboard import Leaderboard
-from leaderboards.trojai_config import TrojaiConfig
+from leaderboards.test_harness_config import TestHarnessConfig
 from airium import Airium
 import uuid
 
@@ -19,7 +19,7 @@ import uuid
 
 class Actor(object):
     VALID_TYPES = ['public', 'performer']
-    def __init__(self, trojai_config: TrojaiConfig, email: str, name: str, poc_email: str, type: str, reset: bool = True):
+    def __init__(self, test_harness_config: TestHarnessConfig, email: str, name: str, poc_email: str, type: str, reset: bool = True):
         self.uuid = str(uuid.uuid1())
         self.email = email
         self.name = name
@@ -37,8 +37,8 @@ class Actor(object):
         self.file_statuses = {}
 
         if reset:
-            for leaderboard_name in trojai_config.active_leaderboard_names:
-                leaderboard = Leaderboard.load_json(trojai_config, leaderboard_name)
+            for leaderboard_name in test_harness_config.active_leaderboard_names:
+                leaderboard = Leaderboard.load_json(test_harness_config, leaderboard_name)
                 for dataset_split_name in leaderboard.get_submission_data_split_names():
                     self.reset_leaderboard_submission(leaderboard_name, dataset_split_name)
 
@@ -197,13 +197,13 @@ class ActorManager(object):
     def get_actors(self) -> ValuesView:
         return self.actors.values()
 
-    def add_actor(self, trojai_config: TrojaiConfig, email: str, name: str, poc_email: str, actor_type: str) -> None:
+    def add_actor(self, test_harness_config: TestHarnessConfig, email: str, name: str, poc_email: str, actor_type: str) -> None:
         for actor in self.actors.values():
             if email == actor.email:
                 raise RuntimeError("Actor already exists in ActorManager: {}".format(email))
             if name == actor.name:
                 raise RuntimeError("Actor Name already exists in ActorManager: {}".format(name))
-        created_actor = Actor(trojai_config, email, name, poc_email, actor_type)
+        created_actor = Actor(test_harness_config, email, name, poc_email, actor_type)
         self.actors[str(created_actor.uuid)] = created_actor
         print('Created: {}'.format(created_actor))
 
@@ -252,23 +252,23 @@ class ActorManager(object):
         else:
             raise RuntimeError('Invalid uuid key {}, not found in actor manager'.format(uuid))
 
-    def save_json(self, trojai_config: TrojaiConfig) -> None:
-        json_io.write(trojai_config.actors_filepath, self)
+    def save_json(self, test_harness_config: TestHarnessConfig) -> None:
+        json_io.write(test_harness_config.actors_filepath, self)
 
     @staticmethod
-    def init_file(trojai_config: TrojaiConfig) -> None:
+    def init_file(test_harness_config: TestHarnessConfig) -> None:
         # Create the json file if it does not exist already
-        if not os.path.exists(trojai_config.actors_filepath):
+        if not os.path.exists(test_harness_config.actors_filepath):
             actor_dict = ActorManager()
-            actor_dict.save_json(trojai_config)
+            actor_dict.save_json(test_harness_config)
 
     @staticmethod
-    def load_json(trojai_config: TrojaiConfig) -> 'ActorManager':
+    def load_json(test_harness_config: TestHarnessConfig) -> 'ActorManager':
         # make sure the file exists
-        if not os.path.exists(trojai_config.actors_filepath):
-            ActorManager.init_file(trojai_config)
+        if not os.path.exists(test_harness_config.actors_filepath):
+            ActorManager.init_file(test_harness_config)
 
-        return json_io.read(trojai_config.actors_filepath)
+        return json_io.read(test_harness_config.actors_filepath)
 
     def write_jobs_table(self, output_dirpath, leaderboard_name, leaderboard_highlight_old_submissions, dataset_split_name, execute_window, cur_epoch, job_color_key):
         jobs_filename = 'jobs-{}-{}.html'.format(leaderboard_name, dataset_split_name)
@@ -313,8 +313,8 @@ class ActorManager(object):
                     file.write(str(actor.__dict__[key]) + ',')
                 file.write('\n')
 
-def add_actor_helper(trojai_config: TrojaiConfig, team_name: str, email: str, poc_email: str, type: str):
-    actor_manager = ActorManager.load_json(trojai_config)
+def add_actor_helper(test_harness_config: TestHarnessConfig, team_name: str, email: str, poc_email: str, type: str):
+    actor_manager = ActorManager.load_json(test_harness_config)
     try:
         team_name = team_name.encode('ascii')
     except:
@@ -327,27 +327,27 @@ def add_actor_helper(trojai_config: TrojaiConfig, team_name: str, email: str, po
         if char in team_name:
             raise RuntimeError('team_name cannot have invalid characters: {}'.format(invalid_chars))
 
-    actor_manager.add_actor(trojai_config, email, team_name, poc_email, type)
-    actor_manager.save_json(trojai_config)
+    actor_manager.add_actor(test_harness_config, email, team_name, poc_email, type)
+    actor_manager.save_json(test_harness_config)
 
 def add_actor(args):
-    trojai_config = TrojaiConfig.load_json(args.trojai_config_filepath)
+    test_harness_config = TestHarnessConfig.load_json(args.test_harness_config_filepath)
     team_name = args.name
     email = args.email
     poc_email = args.poc_email
     type = args.type
-    add_actor_helper(trojai_config, team_name, email, poc_email, type)
+    add_actor_helper(test_harness_config, team_name, email, poc_email, type)
 
 def remove_actor(args):
-    trojai_config = TrojaiConfig.load_json(args.trojai_config_filepath)
-    actor_manager = ActorManager.load_json(trojai_config)
+    test_harness_config = TestHarnessConfig.load_json(args.test_harness_config_filepath)
+    actor_manager = ActorManager.load_json(test_harness_config)
     actor_manager.remove_actor(args.email)
-    actor_manager.save_json(trojai_config)
+    actor_manager.save_json(test_harness_config)
 
 
 def reset_actor(args):
-    trojai_config = TrojaiConfig.load_json(args.trojai_config_filepath)
-    actor_manager = ActorManager.load_json(trojai_config)
+    test_harness_config = TestHarnessConfig.load_json(args.test_harness_config_filepath)
+    actor_manager = ActorManager.load_json(test_harness_config)
 
     data_splits = set()
     leaderboards = []
@@ -357,15 +357,15 @@ def reset_actor(args):
     data_split = args.data_split
 
     if leaderboard_name is not None:
-        leaderboard = Leaderboard.load_json(trojai_config, leaderboard_name)
+        leaderboard = Leaderboard.load_json(test_harness_config, leaderboard_name)
         leaderboards.append(leaderboard)
         if data_split is not None:
             data_splits.add(data_split)
         else:
             data_splits.update(leaderboard.get_submission_data_split_names())
     else:
-        for leaderboard_name in trojai_config.active_leaderboard_names:
-            leaderboard = Leaderboard.load_json(trojai_config, leaderboard_name)
+        for leaderboard_name in test_harness_config.active_leaderboard_names:
+            leaderboard = Leaderboard.load_json(test_harness_config, leaderboard_name)
             leaderboards.append(leaderboard)
             data_splits.update(leaderboard.get_submission_data_split_names())
 
@@ -378,17 +378,17 @@ def reset_actor(args):
             else:
                 print('WARNING: Unable to submit to leaderboards {} for split {}, did not reset'.format(leaderboard.name, data_split_name))
 
-    actor_manager.save_json(trojai_config)
+    actor_manager.save_json(test_harness_config)
 
 
 def actor_to_csv(args):
-    trojai_config = TrojaiConfig.load_json(args.trojai_config_filepath)
-    actor_manager = ActorManager.load_json(trojai_config)
+    test_harness_config = TestHarnessConfig.load_json(args.test_harness_config_filepath)
+    actor_manager = ActorManager.load_json(test_harness_config)
     actor_manager.convert_to_csv(args.output_filepath)
 
 def apply_fix_actor_manager(args):
-    trojai_config = TrojaiConfig.load_json(args.trojai_config_filepath)
-    actor_manager = ActorManager.load_json(trojai_config)
+    test_harness_config = TestHarnessConfig.load_json(args.test_harness_config_filepath)
+    actor_manager = ActorManager.load_json(test_harness_config)
 
     fixed_actors = {}
     for actor in actor_manager.get_actors():
@@ -397,7 +397,7 @@ def apply_fix_actor_manager(args):
 
     actor_manager.actors = fixed_actors
 
-    actor_manager.save_json(trojai_config)
+    actor_manager.save_json(test_harness_config)
 
 if __name__ == "__main__":
     import argparse
@@ -413,7 +413,7 @@ if __name__ == "__main__":
     subparser = parser.add_subparsers(dest='cmd', required=True)
 
     add_actor_parser = subparser.add_parser('add-actor')
-    add_actor_parser.add_argument('--trojai-config-filepath', type=str, help='The filepath to the main trojai config', required=True)
+    add_actor_parser.add_argument('--test-harness-config-filepath', type=str, help='The filepath to the main test harness config', required=True)
     add_actor_parser.add_argument('--name', type=str, help='The name of the team to add', required=True)
     add_actor_parser.add_argument('--email', type=str, help='The submission email of the team to add', required=True)
     add_actor_parser.add_argument('--poc-email', type=str, help='The point of contact email of the team to add', required=True)
@@ -421,24 +421,24 @@ if __name__ == "__main__":
     add_actor_parser.set_defaults(func=add_actor)
 
     remove_actor_parser = subparser.add_parser('remove-actor')
-    remove_actor_parser.add_argument('--trojai-config-filepath', type=str, help='The filepath to the main trojai config', required=True)
+    remove_actor_parser.add_argument('--test-harness-config-filepath', type=str, help='The filepath to the main test harness config', required=True)
     remove_actor_parser.add_argument('--email', type=str, help='The email of the team to remove', required=True)
     remove_actor_parser.set_defaults(func=remove_actor)
 
     reset_actor_parser = subparser.add_parser('reset-actor')
-    reset_actor_parser.add_argument('--trojai-config-filepath', type=str, help='The filepath to the main trojai config', required=True)
+    reset_actor_parser.add_argument('--test-harness-config-filepath', type=str, help='The filepath to the main test harness config', required=True)
     reset_actor_parser.add_argument('--email', type=str, help='The email of the team to reset', required=True)
     reset_actor_parser.add_argument('--leaderboard', type=str, help='The name of the leaderboard to reset, if used by itself will reset all data splits', default=None)
     reset_actor_parser.add_argument('--data-split', type=str, help='The data split name to reset associated with leaderboards. Will only reset that leaderboards and data split.', default=None)
     reset_actor_parser.set_defaults(func=reset_actor)
 
     to_csv_parser = subparser.add_parser('to-csv')
-    to_csv_parser.add_argument('--trojai-config-filepath', type=str, help='The filepath to the main trojai config', required=True)
+    to_csv_parser.add_argument('--test-harness-config-filepath', type=str, help='The filepath to the main test harness config', required=True)
     to_csv_parser.add_argument('--output-filepath', type=str, help='The output filepath for the csv', default='actors.csv')
     to_csv_parser.set_defaults(func=actor_to_csv)
 
     fix_actor_manager = subparser.add_parser('fix')
-    fix_actor_manager.add_argument('--trojai-config-filepath', type=str, help='The filepath to the main trojai config', required=True)
+    fix_actor_manager.add_argument('--test-harness-config-filepath', type=str, help='The filepath to the main test harness config', required=True)
     fix_actor_manager.set_defaults(func=apply_fix_actor_manager)
 
     # TODO: Add update function to safely update various attributes of an actor

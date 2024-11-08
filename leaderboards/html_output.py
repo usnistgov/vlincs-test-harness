@@ -16,8 +16,8 @@ from leaderboards.actor import  ActorManager
 from leaderboards.submission import SubmissionManager
 from leaderboards import time_utils
 from leaderboards import slurm
-from leaderboards.mail_io import TrojaiMail
-from leaderboards.trojai_config import TrojaiConfig
+from leaderboards.mail_io import VLINCSMail
+from leaderboards.test_harness_config import TestHarnessConfig
 from leaderboards.leaderboard import Leaderboard
 from leaderboards.drive_io import DriveIO
 from leaderboards.results_manager import ResultsManager
@@ -50,7 +50,7 @@ def get_leaderboard_javascript_content(leaderboard: Leaderboard):
 
     return content
 
-def write_html_leaderboard_pages(trojai_config: TrojaiConfig, results_manager: ResultsManager, html_output_dirpath: str, leaderboard: Leaderboard, submission_manager: SubmissionManager, actor_manager: ActorManager, html_default_leaderboard: str, cur_epoch: int, is_archived: bool, g_drive):
+def write_html_leaderboard_pages(test_harness_config: TestHarnessConfig, results_manager: ResultsManager, html_output_dirpath: str, leaderboard: Leaderboard, submission_manager: SubmissionManager, actor_manager: ActorManager, html_default_leaderboard: str, cur_epoch: int, is_archived: bool, g_drive):
     written_files = []
 
     # Check for existence of about files for each leaderboard
@@ -66,7 +66,7 @@ def write_html_leaderboard_pages(trojai_config: TrojaiConfig, results_manager: R
             with a.p(klass='card-text text-left'):
                 a('Placeholder text for {}'.format(leaderboard.name))
             with a.div(klass='container'):
-                a.img(src='public/images/trojaiLogo.png', klass='img-fluid', alt='Placeholder image')
+                a.img(src='public/images/logo.png', klass='img-fluid', alt='Placeholder image')
             with a.p():
                 a('Placeholder image description')
 
@@ -78,7 +78,7 @@ def write_html_leaderboard_pages(trojai_config: TrojaiConfig, results_manager: R
     if html_default_leaderboard == leaderboard.name:
         is_first = True
 
-    filepath = leaderboard.write_html_leaderboard(trojai_config.accepting_submissions, html_output_dirpath, is_first, is_archived)
+    filepath = leaderboard.write_html_leaderboard(test_harness_config.accepting_submissions, html_output_dirpath, is_first, is_archived)
     written_files.append(filepath)
 
     for data_split_name in leaderboard.get_html_data_split_names():
@@ -89,7 +89,7 @@ def write_html_leaderboard_pages(trojai_config: TrojaiConfig, results_manager: R
         if not is_archived:
             filepath = actor_manager.write_jobs_table(html_output_dirpath, leaderboard.name,
                                                       leaderboard.highlight_old_submissions, data_split_name,
-                                                      execute_window, cur_epoch, trojai_config.job_color_key)
+                                                      execute_window, cur_epoch, test_harness_config.job_color_key)
             written_files.append(filepath)
 
         filepath = submission_manager.write_score_table(html_output_dirpath, results_manager, leaderboard, actor_manager, data_split_name, g_drive)
@@ -100,7 +100,7 @@ def write_html_leaderboard_pages(trojai_config: TrojaiConfig, results_manager: R
     return written_files
 
 
-def update_html_pages(trojai_config: TrojaiConfig, results_manager: ResultsManager, actor_manager: ActorManager, active_leaderboards_dict: dict, active_submission_managers_dict: dict, archive_leaderboards_dict: dict, archive_submission_managers_dict: dict, commit_and_push: bool, g_drive: DriveIO):
+def update_html_pages(test_harness_config: TestHarnessConfig, results_manager: ResultsManager, actor_manager: ActorManager, active_leaderboards_dict: dict, active_submission_managers_dict: dict, archive_leaderboards_dict: dict, archive_submission_managers_dict: dict, commit_and_push: bool, g_drive: DriveIO):
     cur_epoch = time_utils.get_current_epoch()
 
     lock_filepath = "/var/lock/htmlpush-lockfile"
@@ -120,7 +120,7 @@ def update_html_pages(trojai_config: TrojaiConfig, results_manager: ResultsManag
 
             archive_leaderboards.sort(key=lambda x: x.html_leaderboard_priority, reverse=True)
 
-            html_dirpath = trojai_config.html_repo_dirpath
+            html_dirpath = test_harness_config.html_repo_dirpath
 
             html_output_dirpath = os.path.join(html_dirpath, '_includes')
 
@@ -129,7 +129,7 @@ def update_html_pages(trojai_config: TrojaiConfig, results_manager: ResultsManag
             leaderboards_filepath = os.path.join(html_output_dirpath, 'leaderboards.html')
 
             a = Airium()
-            html_default_leaderboard = trojai_config.html_default_leaderboard_name
+            html_default_leaderboard = test_harness_config.html_default_leaderboard_name
             if html_default_leaderboard == '':
                 if len(active_leaderboards) > 0:
                     html_default_leaderboard = active_leaderboards[0].name
@@ -168,17 +168,17 @@ def update_html_pages(trojai_config: TrojaiConfig, results_manager: ResultsManag
                 logging.info('Generating active leaderboard pages for {}'.format(leaderboard.name))
 
                 submission_manager = active_submission_managers_dict[leaderboard.name]
-                leaderboard_filepaths = write_html_leaderboard_pages(trojai_config, results_manager, html_output_dirpath, leaderboard, submission_manager, actor_manager, html_default_leaderboard, cur_epoch, is_archived=False, g_drive=g_drive)
+                leaderboard_filepaths = write_html_leaderboard_pages(test_harness_config, results_manager, html_output_dirpath, leaderboard, submission_manager, actor_manager, html_default_leaderboard, cur_epoch, is_archived=False, g_drive=g_drive)
                 written_files.extend(leaderboard_filepaths)
 
             for leaderboard in archive_leaderboards:
                 logging.info('Generating archive leaderboard pages for {}'.format(leaderboard.name))
 
                 submission_manager = archive_submission_managers_dict[leaderboard.name]
-                leaderboard_filepaths = write_html_leaderboard_pages(trojai_config, results_manager, html_output_dirpath, leaderboard, submission_manager, actor_manager, html_default_leaderboard, cur_epoch, is_archived=True, g_drive=g_drive)
+                leaderboard_filepaths = write_html_leaderboard_pages(test_harness_config, results_manager, html_output_dirpath, leaderboard, submission_manager, actor_manager, html_default_leaderboard, cur_epoch, is_archived=True, g_drive=g_drive)
                 written_files.extend(leaderboard_filepaths)
 
-            table_javascript_filepath = os.path.join(trojai_config.html_repo_dirpath, 'js', 'trojai-table-init.js')
+            table_javascript_filepath = os.path.join(test_harness_config.html_repo_dirpath, 'js', 'table-init.js')
 
             content = """
 $(document).ready(function () {
@@ -208,7 +208,7 @@ var sort_col;\n
 
                 if down_nodes > 0:
                     msg = '{} SLURM Node(s) Down in queue {}'.format(str(down_nodes), slurm_queue)
-                    TrojaiMail().send('trojai@nist.gov', msg, msg)
+                    VLINCSMail().send('vlincs@nist.gov', msg, msg)
 
                 # A draining node is both "draining" and "alloc"
                 # A drained node is both "drained" and "idle"
@@ -218,7 +218,7 @@ var sort_col;\n
                 web_down_nodes = down_nodes + drained_nodes  # This is "down" and "drained" nodes
 
                 accepting_submissions_update = """
-            var """ + slurm_queue + """AcceptingSubmission = """ + str(trojai_config.accepting_submissions).lower() + """;
+            var """ + slurm_queue + """AcceptingSubmission = """ + str(test_harness_config.accepting_submissions).lower() + """;
             var """ + slurm_queue + """IdleNodes = """ + str(web_idle_nodes) + """;
             var """ + slurm_queue + """RunningNodes = """ + str(web_running_nodes) + """;
             var """ + slurm_queue + """DownNodes = """ + str(web_down_nodes) + """;
@@ -240,12 +240,12 @@ var sort_col;\n
             # Push the HTML to the web
             if commit_and_push:
                 repo = Repo(html_dirpath)
-                if repo.is_dirty() or not trojai_config.accepting_submissions:
+                if repo.is_dirty() or not test_harness_config.accepting_submissions:
                     timestampUpdate = """
     var uploadTimestamp = """ + str(cur_epoch) + """;
     var d = new Date(0);
     d.setUTCSeconds(uploadTimestamp);
-    var acceptingSubmissions = """ + str(trojai_config.accepting_submissions).lower() + """; 
+    var acceptingSubmissions = """ + str(test_harness_config.accepting_submissions).lower() + """; 
     
     $(document).ready(function () {
        $('#timestamp').text(d.toISOString().split('.')[0] );
@@ -274,7 +274,7 @@ var sort_col;\n
         except:
             msg = 'html_output threw an exception, releasing file lock "{}" regardless.{}'.format(lock_filepath,
                                                                                                   traceback.format_exc())
-            TrojaiMail().send('trojai@nist.gov', 'html_output fallback lockfile release', msg)
+            VLINCSMail().send('vlincs@nist.gov', 'html_output fallback lockfile release', msg)
             raise
         finally:
             fcntl.lockf(fh_lock, fcntl.LOCK_UN)

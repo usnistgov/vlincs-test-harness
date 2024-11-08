@@ -463,18 +463,18 @@ class DriveIO(object):
 
 
     def create_external_root_folder(self):
-        return self.create_folder('trojai_admin_leaderboard')
+        return self.create_folder('admin_leaderboard')
 
     def create_actor_root_folder(self, actor_name):
-        return self.create_folder('trojai_results_{}'.format(actor_name))
+        return self.create_folder('results_{}'.format(actor_name))
 
     def create_leaderboard_summary_folder(self):
-        trojai_summary_folder_id = self.create_external_root_folder()
-        return self.create_folder('leaderboard_summary_data', parent_id=trojai_summary_folder_id)
+        test_harness_summary_folder_id = self.create_external_root_folder()
+        return self.create_folder('leaderboard_summary_data', parent_id=test_harness_summary_folder_id)
 
     def create_actor_summary_folder(self):
-        trojai_summary_folder_id = self.create_external_root_folder()
-        return self.create_folder('actor_summary_data', parent_id=trojai_summary_folder_id)
+        test_harness_summary_folder_id = self.create_external_root_folder()
+        return self.create_folder('actor_summary_data', parent_id=test_harness_summary_folder_id)
 
     def get_submission_actor_and_external_folder_ids(self, actor_name: str, leaderboard_name: str, data_split_name: str):
         try:

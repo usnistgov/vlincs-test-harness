@@ -8,7 +8,7 @@ import logging
 import subprocess
 import traceback
 
-from leaderboards.mail_io import TrojaiMail
+from leaderboards.mail_io import VLINCSMail
 
 
 def squeue(job_name: str, queue_name: str):
@@ -21,7 +21,7 @@ def squeue(job_name: str, queue_name: str):
         logging.error("Slurm is no longer online, error = {}".format(stderr))
         logging.error(traceback.format_exc())
         msg = 'Slurm is no longer online. Error = {}.\nTraceback:\n{}'.format(stderr, traceback.format_exc())
-        TrojaiMail().send('trojai@nist.gov', 'Slurm Offline', msg)
+        VLINCSMail().send('vlincs@nist.gov', 'Slurm Offline', msg)
         raise RuntimeError("Slurm is no longer online, error = {}".format(stderr))
     return stdout, stderr
 
@@ -36,7 +36,7 @@ def sinfo_node_query(queue_name: str, state: str):
         logging.error("Slurm is no longer online, error = {}".format(stderr))
         logging.error(traceback.format_exc())
         msg = 'Slurm is no longer online. Error = {}.\nTraceback:\n{}'.format(stderr, traceback.format_exc())
-        TrojaiMail().send('trojai@nist.gov', 'Slurm Offline', msg)
+        VLINCSMail().send('vlincs@nist.gov', 'Slurm Offline', msg)
         return '0'
 
     if stdout == b'':

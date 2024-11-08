@@ -14,7 +14,7 @@ from typing import Dict
 
 import fcntl
 
-from leaderboards.trojai_config import TrojaiConfig
+from leaderboards.test_harness_config import TestHarnessConfig
 from leaderboards.drive_io import DriveIO, UploadWorker
 from leaderboards.actor import Actor, ActorManager
 from leaderboards.submission import Submission, SubmissionManager
@@ -27,9 +27,9 @@ import warnings
 
 
 
-def process_new_submission(trojai_config: TrojaiConfig, g_drive: DriveIO, actor: Actor, active_leaderboards: Dict[str, Leaderboard],  active_submission_managers: Dict[str, SubmissionManager]) -> None:
+def process_new_submission(test_harness_config: TestHarnessConfig, g_drive: DriveIO, actor: Actor, active_leaderboards: Dict[str, Leaderboard], active_submission_managers: Dict[str, SubmissionManager]) -> None:
 
-    if not trojai_config.accepting_submissions:
+    if not test_harness_config.accepting_submissions:
         logging.info("New submissions are closed.")
         return
 
@@ -144,7 +144,7 @@ def process_new_submission(trojai_config: TrojaiConfig, g_drive: DriveIO, actor:
                         submission_manager.add_submission(actor, submission)
                         logging.info('Added submission file name "{}" to manager from email "{}"'.format(submission.g_file.name, actor.email))
                         exec_epoch = time_utils.get_current_epoch()
-                        submission.execute(actor, trojai_config, exec_epoch)
+                        submission.execute(actor, test_harness_config, exec_epoch)
                     else:
                         logging.info(
                             'Submission found is the same within one of the submissions already in the submission manager for team {}; new file name: {}, new file epoch: {}'.format(
@@ -156,7 +156,7 @@ def process_new_submission(trojai_config: TrojaiConfig, g_drive: DriveIO, actor:
                 logging.info('Team {} timeout window has not elapsed. check_epoch: {}, last_submission_epoch: {}, leaderboards: {}, data split: {}'.format(actor.name, check_epoch, actor.get_last_submission_epoch(leaderboard_name, data_split_name), leaderboard_name, data_split_name))
                 actor.update_job_status(leaderboard_name, data_split_name, 'Awaiting Timeout')
 
-def process_team(trojai_config: TrojaiConfig, g_drive: DriveIO, actor: Actor, active_leaderboards: Dict[str, Leaderboard], active_submission_managers: Dict[str, SubmissionManager], results_manager: ResultsManager) -> None:
+def process_team(test_harness_config: TestHarnessConfig, g_drive: DriveIO, actor: Actor, active_leaderboards: Dict[str, Leaderboard], active_submission_managers: Dict[str, SubmissionManager], results_manager: ResultsManager) -> None:
 
     for leaderboard_name, submission_manager in active_submission_managers.items():
         actor_submission_list = submission_manager.get_submissions_by_actor(actor)
@@ -172,20 +172,20 @@ def process_team(trojai_config: TrojaiConfig, g_drive: DriveIO, actor: Actor, ac
 
                 leaderboard = active_leaderboards[submission.leaderboard_name]
 
-                submission.check(trojai_config, results_manager, g_drive, actor, leaderboard, submission_manager, trojai_config.log_file_byte_limit)
+                submission.check(test_harness_config, results_manager, g_drive, actor, leaderboard, submission_manager, test_harness_config.log_file_byte_limit)
 
     # look for any new submissions
     # This might modify the SubmissionManager instance
     logging.info('Done processing old/pending submission.')
-    process_new_submission(trojai_config, g_drive, actor, active_leaderboards, active_submission_managers)
+    process_new_submission(test_harness_config, g_drive, actor, active_leaderboards, active_submission_managers)
 
 
-def main(trojai_config: TrojaiConfig) -> None:
+def main(test_harness_config: TestHarnessConfig) -> None:
     start_time = time.time()
 
     # load the instance of ActorManager from the serialized json file
-    actor_manager = ActorManager.load_json(trojai_config)
-    logging.debug('Loaded actor_manager from filepath: {}'.format(trojai_config.actors_filepath))
+    actor_manager = ActorManager.load_json(test_harness_config)
+    logging.debug('Loaded actor_manager from filepath: {}'.format(test_harness_config.actors_filepath))
     logging.debug(actor_manager)
 
     results_manager = ResultsManager()
@@ -196,13 +196,13 @@ def main(trojai_config: TrojaiConfig) -> None:
     archive_leaderboards = {}
     archive_submission_managers = {}
 
-    for leaderboard_name in trojai_config.active_leaderboard_names:
-        leaderboard = Leaderboard.load_json(trojai_config, leaderboard_name)
+    for leaderboard_name in test_harness_config.active_leaderboard_names:
+        leaderboard = Leaderboard.load_json(test_harness_config, leaderboard_name)
         if leaderboard is None:
             continue
 
         # Check for any new instance data during development
-        leaderboard.check_instance_data(trojai_config)
+        leaderboard.check_instance_data(test_harness_config)
 
         active_leaderboards[leaderboard_name] = leaderboard
         submission_manager = SubmissionManager.load_json(leaderboard)
@@ -216,8 +216,8 @@ def main(trojai_config: TrojaiConfig) -> None:
         logging.debug(leaderboard)
         logging.debug(active_submission_managers[leaderboard_name])
 
-    for leaderboard_name in trojai_config.archive_leaderboard_names:
-        leaderboard = Leaderboard.load_json(trojai_config, leaderboard_name)
+    for leaderboard_name in test_harness_config.archive_leaderboard_names:
+        leaderboard = Leaderboard.load_json(test_harness_config, leaderboard_name)
         if leaderboard is None:
             continue
 
@@ -236,7 +236,7 @@ def main(trojai_config: TrojaiConfig) -> None:
     lock = Lock()
     cond = Condition(lock)
 
-    g_drive = DriveIO(trojai_config.token_pickle_filepath, upload_queue, lock, cond)
+    g_drive = DriveIO(test_harness_config.token_pickle_filepath, upload_queue, lock, cond)
 
     # TODO: Sort out how to handle multi-threaded upload
     # upload_worker_threads = 1
@@ -248,7 +248,7 @@ def main(trojai_config: TrojaiConfig) -> None:
             logging.info('**************************************************')
             logging.info('Processing {}:'.format(actor.name))
             logging.info('**************************************************')
-            process_team(trojai_config, g_drive, actor, active_leaderboards, active_submission_managers, results_manager)
+            process_team(test_harness_config, g_drive, actor, active_leaderboards, active_submission_managers, results_manager)
         except:
             msg = 'Exception processing actor "{}" loop:\n{}'.format(actor.name, traceback.format_exc())
             logging.error(msg)
@@ -256,7 +256,7 @@ def main(trojai_config: TrojaiConfig) -> None:
     logging.info('Saving actors and submission managers prior to checking new metrics')
     # Write all updates to actors back to file
     logging.debug('Serializing updated actor_manger back to json.')
-    actor_manager.save_json(trojai_config)
+    actor_manager.save_json(test_harness_config)
 
     # Save all results thus far
     results_manager.save_all()
@@ -294,21 +294,21 @@ def main(trojai_config: TrojaiConfig) -> None:
     # Apply summary updates
     cur_epoch = time_utils.get_current_epoch()
     summary_html_plots = []
-    if trojai_config.can_apply_summary_updates(cur_epoch):
+    if test_harness_config.can_apply_summary_updates(cur_epoch):
         logging.info('Applying summary metric updates')
-        if not os.path.exists(trojai_config.summary_metrics_dirpath):
-            os.makedirs(trojai_config.summary_metrics_dirpath)
+        if not os.path.exists(test_harness_config.summary_metrics_dirpath):
+            os.makedirs(test_harness_config.summary_metrics_dirpath)
 
-        trojai_summary_folder_id = g_drive.create_leaderboard_summary_folder()
+        test_harness_summary_folder_id = g_drive.create_leaderboard_summary_folder()
 
         # Run global metric updates for active leaderboards
         for leaderboard_name, leaderboard in active_leaderboards.items():
-            leaderboard = Leaderboard.load_json(trojai_config, leaderboard_name)
+            leaderboard = Leaderboard.load_json(test_harness_config, leaderboard_name)
 
             # Upload summary schema CSV
-            summary_schema_csv_filepath = leaderboard.get_summary_schema_csv_filepath(trojai_config)
+            summary_schema_csv_filepath = leaderboard.get_summary_schema_csv_filepath(test_harness_config)
             if os.path.exists(summary_schema_csv_filepath):
-                g_drive.upload(summary_schema_csv_filepath, folder_id=trojai_summary_folder_id)
+                g_drive.upload(summary_schema_csv_filepath, folder_id=test_harness_summary_folder_id)
 
             submission_manager = active_submission_managers[leaderboard_name]
 
@@ -316,8 +316,8 @@ def main(trojai_config: TrojaiConfig) -> None:
 
             submission_manager.generate_round_results_csv(results_manager, leaderboard, actor_manager, overwrite_csv=False)
 
-            g_drive.upload(leaderboard.summary_metadata_csv_filepath, trojai_summary_folder_id)
-            g_drive.upload(leaderboard.summary_results_csv_filepath, trojai_summary_folder_id)
+            g_drive.upload(leaderboard.summary_metadata_csv_filepath, test_harness_summary_folder_id)
+            g_drive.upload(leaderboard.summary_results_csv_filepath, test_harness_summary_folder_id)
 
             metadata_df = leaderboard.load_metadata_csv_into_df()
             results_df = leaderboard.load_summary_results_csv_into_df()
@@ -326,7 +326,7 @@ def main(trojai_config: TrojaiConfig) -> None:
                 if data_split_name == 'sts':
                     continue
 
-                leaderboard_folder_id = g_drive.create_folder('{}_{}'.format(leaderboard_name, data_split_name), trojai_summary_folder_id)
+                leaderboard_folder_id = g_drive.create_folder('{}_{}'.format(leaderboard_name, data_split_name), test_harness_summary_folder_id)
 
                 # Subset metadata and results dfs
                 subset_metadata_df = metadata_df[metadata_df['data_split'] == data_split_name]
@@ -341,7 +341,7 @@ def main(trojai_config: TrojaiConfig) -> None:
                     if subset_results_df is None:
                         continue
                         
-                    output_files = summary_metric.compute_and_write_data(leaderboard_name, data_split_name, subset_metadata_df, subset_results_df, trojai_config.summary_metrics_dirpath)
+                    output_files = summary_metric.compute_and_write_data(leaderboard_name, data_split_name, subset_metadata_df, subset_results_df, test_harness_config.summary_metrics_dirpath)
 
                     if summary_metric.shared_with_collaborators:
                         for file in output_files:
@@ -357,8 +357,8 @@ def main(trojai_config: TrojaiConfig) -> None:
             leaderboard.generate_metadata_csv(overwrite_csv=False)
             submission_manager.generate_round_results_csv(results_manager, leaderboard, actor_manager, overwrite_csv=False)
 
-            g_drive.upload(leaderboard.summary_metadata_csv_filepath, trojai_summary_folder_id)
-            g_drive.upload(leaderboard.summary_results_csv_filepath, trojai_summary_folder_id)
+            g_drive.upload(leaderboard.summary_metadata_csv_filepath, test_harness_summary_folder_id)
+            g_drive.upload(leaderboard.summary_results_csv_filepath, test_harness_summary_folder_id)
 
             metadata_df = leaderboard.load_metadata_csv_into_df()
             results_df = leaderboard.load_summary_results_csv_into_df()
@@ -367,14 +367,14 @@ def main(trojai_config: TrojaiConfig) -> None:
                 if data_split_name == 'sts':
                     continue
 
-                leaderboard_folder_id = g_drive.create_folder('{}_{}'.format(leaderboard_name, data_split_name), trojai_summary_folder_id)
+                leaderboard_folder_id = g_drive.create_folder('{}_{}'.format(leaderboard_name, data_split_name), test_harness_summary_folder_id)
 
                 # Subset metadata and results dfs
                 subset_metadata_df = metadata_df[metadata_df['data_split'] == data_split_name]
                 subset_results_df = results_df[results_df['data_split'] == data_split_name]
 
                 for summary_metric in leaderboard.summary_metrics:
-                    output_files = summary_metric.compute_and_write_data(leaderboard_name, data_split_name, subset_metadata_df, subset_results_df, trojai_config.summary_metrics_dirpath)
+                    output_files = summary_metric.compute_and_write_data(leaderboard_name, data_split_name, subset_metadata_df, subset_results_df, test_harness_config.summary_metrics_dirpath)
 
                     if summary_metric.shared_with_collaborators:
                         for file in output_files:
@@ -386,16 +386,16 @@ def main(trojai_config: TrojaiConfig) -> None:
         # Share summary metrics
         external_root_folder = g_drive.create_external_root_folder()
         g_drive.remove_all_sharing_permissions(external_root_folder)
-        for email in trojai_config.summary_metric_email_addresses:
+        for email in test_harness_config.summary_metric_email_addresses:
             g_drive.share(external_root_folder, email)
 
     # Check web-site updates
     logging.info('Updating HTML pages')
-    update_html_pages(trojai_config, results_manager, actor_manager, active_leaderboards, active_submission_managers, archive_leaderboards, archive_submission_managers, commit_and_push=trojai_config.commit_and_push_html, g_drive=g_drive)
+    update_html_pages(test_harness_config, results_manager, actor_manager, active_leaderboards, active_submission_managers, archive_leaderboards, archive_submission_managers, commit_and_push=test_harness_config.commit_and_push_html, g_drive=g_drive)
 
     # Write all updates to actors back to file
     logging.debug('Serializing updated actor_manger back to json.')
-    actor_manager.save_json(trojai_config)
+    actor_manager.save_json(test_harness_config)
 
     logging.debug('Serializing updated submission_managers back to json.')
     # Should only have to save the submission manager. Leaderboard should be static
@@ -430,35 +430,35 @@ if __name__ == "__main__":
     warnings.filterwarnings("ignore", module="matplotlib\..*")
     import argparse
 
-    parser = argparse.ArgumentParser(description='Check and Launch script for TrojAI challenge participants')
-    parser.add_argument('--trojai-config-filepath', type=str,
-                        help='The JSON file that describes trojai.', required=True)
+    parser = argparse.ArgumentParser(description='Check and Launch script for Test Harness challenge participants')
+    parser.add_argument('--test-harness-config-filepath', type=str,
+                        help='The JSON file that describes test harness.', required=True)
 
     args = parser.parse_args()
 
-    trojai_config = TrojaiConfig.load_json(args.trojai_config_filepath)
+    test_harness_config = TestHarnessConfig.load_json(args.test_harness_config_filepath)
 
     # PidFile ensures that this script is only running once
     print('Attempting to acquire PID file lock.')
-    lock_file = '/var/lock/trojai-lockfile'
+    lock_file = '/var/lock/test-harness-lockfile'
     with open(lock_file, 'w') as f:
         try:
             fcntl.lockf(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
             print('  PID lock acquired')
             # make sure intermediate folders to the logfile exists
-            parent_fp = os.path.dirname(trojai_config.log_filepath)
+            parent_fp = os.path.dirname(test_harness_config.log_filepath)
             if not os.path.exists(parent_fp):
                 os.makedirs(parent_fp)
             # Add the log message handler to the logger
-            handler = logging.handlers.RotatingFileHandler(trojai_config.log_filepath, maxBytes=100*1e6, backupCount=10) # 100MB
+            handler = logging.handlers.RotatingFileHandler(test_harness_config.log_filepath, maxBytes=100 * 1e6, backupCount=10) # 100MB
             logging.basicConfig(level=logging.INFO,
                                 format="%(asctime)s [%(levelname)s] [%(filename)s:%(lineno)d] %(message)s",
                                 handlers=[handler])
             # Enable when debugging
             #logging.getLogger().addHandler(logging.StreamHandler())
 
-            logging.debug('PID file lock acquired in directory {}'.format(args.trojai_config_filepath))
-            main(trojai_config)
+            logging.debug('PID file lock acquired in directory {}'.format(args.test_harness_config_filepath))
+            main(test_harness_config)
         except OSError as e:
             print('check-and-launch was already running when called. {}'.format(e))
         finally:

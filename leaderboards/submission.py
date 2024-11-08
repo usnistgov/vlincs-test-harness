@@ -26,9 +26,8 @@ from leaderboards import json_io
 from leaderboards import slurm
 from leaderboards import time_utils
 from leaderboards.leaderboard import *
-from leaderboards.trojai_config import TrojaiConfig
+from leaderboards.test_harness_config import TestHarnessConfig
 from leaderboards import hash_utils
-from leaderboards import jsonschema_checker
 from leaderboards.results_manager import ResultsManager
 
 class Submission(object):
@@ -131,7 +130,7 @@ class Submission(object):
         else:
             return True
 
-    def check(self, trojai_config: TrojaiConfig, results_manager: ResultsManager, g_drive: DriveIO, actor: Actor, leaderboard: Leaderboard, submission_manager: 'SubmissionManager', log_file_byte_limit: int) -> None:
+    def check(self, test_harness_config: TestHarnessConfig, results_manager: ResultsManager, g_drive: DriveIO, actor: Actor, leaderboard: Leaderboard, submission_manager: 'SubmissionManager', log_file_byte_limit: int) -> None:
 
         if self.active_slurm_job_name is None:
             logging.info('Submission "{}_{}" by team "{}" is not active.'.format(self.leaderboard_name, self.data_split_name, actor.name))
@@ -162,7 +161,7 @@ class Submission(object):
             logging.info('squeue does not have status for job name: {}'.format(self.active_slurm_job_name))
             # 1 entries means no state and job name was not found
             # if the job was not found, and this was a previously active submission, the results are ready for processing
-            self.process_completed_submission(trojai_config, results_manager, actor, leaderboard, g_drive, log_file_byte_limit)
+            self.process_completed_submission(test_harness_config, results_manager, actor, leaderboard, g_drive, log_file_byte_limit)
 
             if leaderboard.is_auto_delete_submission(self.data_split_name):
                 # delete the container file to avoid filling up disk space
@@ -204,13 +203,13 @@ class Submission(object):
                                 logging.info('Added submission file name "{}" to manager for email "{}" when auto submitting for {}'.format(new_submission.g_file.name, actor.email, auto_execute_split_name))
                                 time.sleep(1)
                                 exec_epoch = time_utils.get_current_epoch()
-                                new_submission.execute(actor, trojai_config, exec_epoch)
+                                new_submission.execute(actor, test_harness_config, exec_epoch)
         # Unknown format coming from slurm, attempt to process results for whatever is there
         else:
             logging.warning("Incorrect format for stdout from squeue: {}".format(stdoutSplitNL))
 
             # attempt to process the result
-            self.process_completed_submission(trojai_config, results_manager, actor, leaderboard, g_drive, log_file_byte_limit)
+            self.process_completed_submission(test_harness_config, results_manager, actor, leaderboard, g_drive, log_file_byte_limit)
 
             if leaderboard.is_auto_delete_submission(self.data_split_name):
                 # delete the container file to avoid filling up disk space
@@ -221,39 +220,8 @@ class Submission(object):
 
         logging.info("After Check submission: {}".format(self))
 
-    def dump_summary_schema_csv(self, trojai_config: TrojaiConfig, actor_name: str,  leaderboard: Leaderboard):
-        summary_schema_csv_filepath = leaderboard.get_summary_schema_csv_filepath(trojai_config)
 
-        default_schema_keys = ['$schema', 'title', 'technique', 'technique_description', 'technique_changes', 'commit_id', 'repo_name', 'required', 'additionalProperties', 'type', 'properties']
-
-        submission_filepath = self.get_submission_filepath()
-        if not os.path.exists(submission_filepath):
-            logging.info('The submission no longer exists {}'.format(submission_filepath))
-            return
-
-        schema_dict = jsonschema_checker.collect_json_metaparams_schema(submission_filepath)
-
-        new_csv = False
-        if not os.path.exists(summary_schema_csv_filepath):
-            new_csv = True
-
-        with open(summary_schema_csv_filepath, 'a') as f:
-            if new_csv:
-                f.write('team_name,data_split,{},submission_filepath'.format(','.join(default_schema_keys)))
-
-            schema_output = '{},{},'.format(actor_name, self.data_split_name)
-
-            for schema_key in default_schema_keys:
-                if schema_dict is None or schema_key not in schema_dict:
-                    schema_output += 'None,'
-                else:
-                    schema_output += '{},'.format(schema_dict[schema_key])
-
-            schema_output += '{}\n'.format(submission_filepath)
-
-            f.write(schema_output)
-
-    def process_completed_submission(self, trojai_config: TrojaiConfig, results_manager: ResultsManager, actor: Actor, leaderboard: Leaderboard, g_drive: DriveIO, log_file_byte_limit: int, update_actor: bool = True, print_details: bool = True, output_metaparams_csv: bool = True):
+    def process_completed_submission(self, test_harness_config: TestHarnessConfig, results_manager: ResultsManager, actor: Actor, leaderboard: Leaderboard, g_drive: DriveIO, log_file_byte_limit: int, update_actor: bool = True, print_details: bool = True, output_metaparams_csv: bool = True):
         logging.info('Processing completed submission for {}'.format(actor.name))
 
         ##################################################
@@ -267,11 +235,6 @@ class Submission(object):
         ##################################################
         actor_submission_folder_id, external_actor_submission_folder_id = g_drive.get_submission_actor_and_external_folder_ids(actor.name, leaderboard.name, self.data_split_name)
 
-        ##################################################
-        # Dumps submissions metadata file into CSV format
-        ##################################################
-        if output_metaparams_csv:
-            self.dump_summary_schema_csv(trojai_config, actor.name, leaderboard)
 
         info_filepath = os.path.join(self.execution_results_dirpath, Leaderboard.INFO_FILENAME)
         slurm_log_filepath = os.path.join(self.execution_results_dirpath, self.slurm_output_filename)
@@ -418,7 +381,7 @@ class Submission(object):
     def get_submission_epoch_str_primary(self):
         return time_utils.convert_epoch_to_iso(self.submission_epoch)
 
-    def execute(self, actor: Actor, trojai_config: TrojaiConfig, execution_epoch: int, execute_local=False, custom_home_dirpath: str=None, custom_scratch_dirpath: str=None, custom_slurm_options=None, custom_python_env_filepath: str = None) -> None:
+    def execute(self, actor: Actor, test_harness_config: TestHarnessConfig, execution_epoch: int, execute_local=False, custom_home_dirpath: str=None, custom_scratch_dirpath: str=None, custom_slurm_options=None, custom_python_env_filepath: str = None) -> None:
         if custom_slurm_options is None:
             custom_slurm_options = []
 
@@ -436,28 +399,28 @@ class Submission(object):
 
         self.active_slurm_job_name = self.get_slurm_job_name(actor)
 
-        slurm_script_filepath = trojai_config.slurm_execute_script_filepath
-        task_executor_script_filepath = trojai_config.task_evaluator_script_filepath
+        slurm_script_filepath = test_harness_config.slurm_execute_script_filepath
+        task_executor_script_filepath = test_harness_config.task_evaluator_script_filepath
 
-        python_executable = trojai_config.python_env
+        python_executable = test_harness_config.python_env
         if custom_python_env_filepath is not None:
             python_executable = custom_python_env_filepath
 
-        test_harness_dirpath = trojai_config.trojai_test_harness_dirpath
-        control_slurm_queue = trojai_config.control_slurm_queue_name
+        test_harness_dirpath = test_harness_config.root_test_harness_dirpath
+        control_slurm_queue = test_harness_config.control_slurm_queue_name
         submission_filepath = self.get_submission_filepath()
-        trojai_config_filepath = trojai_config.trojai_config_filepath
+        test_harness_config_filepath = test_harness_config.test_harness_config_filepath
 
         cpus_per_task = 30
-        if self.slurm_queue_name in trojai_config.vm_cpu_cores_per_partition:
-            cpus_per_task = trojai_config.vm_cpu_cores_per_partition[self.slurm_queue_name]
+        if self.slurm_queue_name in test_harness_config.vm_cpu_cores_per_partition:
+            cpus_per_task = test_harness_config.vm_cpu_cores_per_partition[self.slurm_queue_name]
 
         epoch_str = time_utils.convert_epoch_to_psudo_iso(self.submission_epoch)
 
         self.slurm_output_filename = '{}.{}_{}_{}.log.txt'.format(self.leaderboard_name, actor.name, epoch_str, self.data_split_name)
         slurm_output_filepath = os.path.join(self.execution_results_dirpath, self.slurm_output_filename)
-        # cmd_str_list = [slurm_script_filepath, actor.name, actor.email, submission_filepath, result_dirpath,  trojai_config_filepath, self.leaderboard_name, self.data_split_name, test_harness_dirpath, python_executable, task_executor_script_filepath]
-        # cmd_str_list = ['sbatch', '--partition', control_slurm_queue, '--parsable', '--nice={}'.format(self.slurm_nice), '--nodes', '1', '--ntasks-per-node', '1', '--cpus-per-task', '1', ':', '--partition', self.slurm_queue_name, '--nice={}'.format(self.slurm_nice), '--nodes', '1', '--ntasks-per-node', '1', '--cpus-per-task', str(cpus_per_task), '--exclusive', '-J', self.active_slurm_job_name, '--parsable', '-o', slurm_output_filepath, slurm_script_filepath, actor.name, actor.email, submission_filepath, self.execution_results_dirpath, trojai_config_filepath, self.leaderboard_name, self.data_split_name, test_harness_dirpath, python_executable, task_executor_script_filepath]
+        # cmd_str_list = [slurm_script_filepath, actor.name, actor.email, submission_filepath, result_dirpath,  test_harness_config_filepath, self.leaderboard_name, self.data_split_name, test_harness_dirpath, python_executable, task_executor_script_filepath]
+        # cmd_str_list = ['sbatch', '--partition', control_slurm_queue, '--parsable', '--nice={}'.format(self.slurm_nice), '--nodes', '1', '--ntasks-per-node', '1', '--cpus-per-task', '1', ':', '--partition', self.slurm_queue_name, '--nice={}'.format(self.slurm_nice), '--nodes', '1', '--ntasks-per-node', '1', '--cpus-per-task', str(cpus_per_task), '--exclusive', '-J', self.active_slurm_job_name, '--parsable', '-o', slurm_output_filepath, slurm_script_filepath, actor.name, actor.email, submission_filepath, self.execution_results_dirpath, test_harness_config_filepath, self.leaderboard_name, self.data_split_name, test_harness_dirpath, python_executable, task_executor_script_filepath]
         cmd_str_list = []
         if execute_local:
             if custom_home_dirpath is None or custom_scratch_dirpath is None:
@@ -476,10 +439,10 @@ class Submission(object):
                                        "--team-email", "{}".format(actor.email),
                                        "--submission-filepath", "{}".format(submission_filepath),
                                        "--result-dirpath", self.execution_results_dirpath,
-                                       "--trojai-config-filepath", trojai_config_filepath,
+                                       "--test-harness-config-filepath", test_harness_config_filepath,
                                        "--leaderboard-name", self.leaderboard_name,
                                        "--data-split-name", self.data_split_name,
-                                       "--trojai-test-harness-dirpath", test_harness_dirpath,
+                                       "--test-harness-dirpath", test_harness_dirpath,
                                        "--python-exec", python_executable,
                                        "--task-executor-filepath", task_executor_script_filepath,
                                        "--is-local",
@@ -505,10 +468,10 @@ class Submission(object):
                                        "--team-email", "{}".format(actor.email),
                                        "--submission-filepath", "{}".format(submission_filepath),
                                        "--result-dirpath", self.execution_results_dirpath,
-                                       "--trojai-config-filepath", trojai_config_filepath,
+                                       "--test-harness-config-filepath", test_harness_config_filepath,
                                        "--leaderboard-name", self.leaderboard_name,
                                        "--data-split-name", self.data_split_name,
-                                       "--trojai-test-harness-dirpath", test_harness_dirpath,
+                                       "--test-harness-dirpath", test_harness_dirpath,
                                        "--python-exec", python_executable,
                                        "--task-executor-filepath", task_executor_script_filepath]
 
@@ -856,7 +819,7 @@ class SubmissionManager(object):
 
         num_dfs_added = 0
 
-        new_data = dict()
+        new_data = {}
 
         dictionary_time_start = time.time()
 
@@ -909,10 +872,10 @@ class SubmissionManager(object):
 
         return result_df
 
-    def recompute_metrics(self, trojai_config: TrojaiConfig, results_manager: ResultsManager, leaderboard: Leaderboard, new_only: bool, skip_upload_existing: bool):
+    def recompute_metrics(self, test_harness_config: TestHarnessConfig, results_manager: ResultsManager, leaderboard: Leaderboard, new_only: bool, skip_upload_existing: bool):
 
-        actor_manager = ActorManager.load_json(trojai_config)
-        g_drive = DriveIO(trojai_config.token_pickle_filepath)
+        actor_manager = ActorManager.load_json(test_harness_config)
+        g_drive = DriveIO(test_harness_config.token_pickle_filepath)
 
         for actor_uuid, submissions in self.__submissions.items():
             actor = actor_manager.get_from_uuid(actor_uuid)
@@ -934,19 +897,10 @@ class SubmissionManager(object):
         results_manager.save_all()
         self.save_json(leaderboard)
 
-    def dump_metaparameter_csv(self, trojai_config: TrojaiConfig, leaderboard: Leaderboard):
-        actor_manager = ActorManager.load_json(trojai_config)
-
-        for actor_uuid, submissions in self.__submissions.items():
-            actor = actor_manager.get_from_uuid(actor_uuid)
-            for submission in submissions:
-                submission.dump_summary_schema_csv(trojai_config, actor.name, leaderboard)
-
-
 
 def merge_submissions(args):
-    trojai_config = TrojaiConfig.load_json(args.trojai_config_filepath)
-    leaderboard = Leaderboard.load_json(trojai_config, args.name)
+    test_harness_config = TestHarnessConfig.load_json(args.test_harness_config_filepath)
+    leaderboard = Leaderboard.load_json(test_harness_config, args.name)
     new_submission_manager = SubmissionManager.load_json_custom(args.new_submissions_filepath, leaderboard.name)
     submission_manager = SubmissionManager.load_json(leaderboard)
 
@@ -960,7 +914,7 @@ def merge_submissions(args):
 
 
 def recompute_metrics(args):
-    trojai_config = TrojaiConfig.load_json(args.trojai_config_filepath)
+    test_harness_config = TestHarnessConfig.load_json(args.test_harness_config_filepath)
     results_manager = ResultsManager()
 
     leaderboard_names = []
@@ -968,9 +922,9 @@ def recompute_metrics(args):
     if args.name is not None:
         leaderboard_names.append(args.name)
     else:
-        for name in trojai_config.archive_leaderboard_names:
+        for name in test_harness_config.archive_leaderboard_names:
             leaderboard_names.append(name)
-        for name in trojai_config.active_leaderboard_names:
+        for name in test_harness_config.active_leaderboard_names:
             leaderboard_names.append(name)
 
 
@@ -979,12 +933,12 @@ def recompute_metrics(args):
                         handlers=[logging.StreamHandler()])
 
     print('Attempting to acquire PID file lock.')
-    lock_file = '/var/lock/trojai-lockfile'
+    lock_file = '/var/lock/test-harness-lockfile'
     if args.unsafe:
         for name in leaderboard_names:
-            leaderboard = Leaderboard.load_json(trojai_config, name)
+            leaderboard = Leaderboard.load_json(test_harness_config, name)
             submission_manager = SubmissionManager.load_json(leaderboard)
-            submission_manager.recompute_metrics(trojai_config, results_manager, leaderboard, args.new_only, args.skip_upload_existing)
+            submission_manager.recompute_metrics(test_harness_config, results_manager, leaderboard, args.new_only, args.skip_upload_existing)
             print('Finished recomputing metrics for {}'.format(leaderboard.name))
     else:
         with open(lock_file, 'w') as f:
@@ -992,153 +946,27 @@ def recompute_metrics(args):
                 fcntl.lockf(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 print('  PID lock acquired')
                 for name in leaderboard_names:
-                    leaderboard = Leaderboard.load_json(trojai_config, name)
+                    leaderboard = Leaderboard.load_json(test_harness_config, name)
                     submission_manager = SubmissionManager.load_json(leaderboard)
-                    submission_manager.recompute_metrics(trojai_config, results_manager, leaderboard, args.new_only, args.skip_upload_existing)
+                    submission_manager.recompute_metrics(test_harness_config, results_manager, leaderboard, args.new_only, args.skip_upload_existing)
                     print('Finished recomputing metrics for {}'.format(leaderboard.name))
             except OSError as e:
                 print('check-and-launch was already running when called. {}'.format(e))
             finally:
                 fcntl.lockf(f, fcntl.LOCK_UN)
 
-def dump_metaparameters_csv(args):
-    trojai_config = TrojaiConfig.load_json(args.trojai_config_filepath)
-
-    logging.basicConfig(level=logging.INFO,
-                        format="%(asctime)s [%(levelname)s] [%(filename)s:%(lineno)d] %(message)s",
-                        handlers=[logging.StreamHandler()])
-
-    print('Attempting to acquire PID file lock.')
-    lock_file = '/var/lock/trojai-lockfile'
-
-    with open(lock_file, 'w') as f:
-        try:
-            fcntl.lockf(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            print('  PID lock acquired')
-
-            leaderboard_name = args.name
-            leaderboards = []
-
-            if leaderboard_name is None:
-                for leaderboard_name in trojai_config.active_leaderboard_names:
-                    leaderboard = Leaderboard.load_json(trojai_config, leaderboard_name)
-                    leaderboards.append(leaderboard)
-
-                for leaderboard_name in trojai_config.archive_leaderboard_names:
-                    leaderboard = Leaderboard.load_json(trojai_config, leaderboard_name)
-                    leaderboards.append(leaderboard)
-
-            else:
-                leaderboard = Leaderboard.load_json(trojai_config, args.name)
-                leaderboards.append(leaderboard)
-
-            for leaderboard in leaderboards:
-                submission_manager = SubmissionManager.load_json(leaderboard)
-                submission_manager.dump_metaparameter_csv(trojai_config, leaderboard)
-                print('Finished dumping metaparameters csv for {}'.format(leaderboard.name))
-        except OSError as e:
-            print('check-and-launch was already running when called. {}'.format(e))
-        finally:
-            fcntl.lockf(f, fcntl.LOCK_UN)
 
 def generate_results_csv(args):
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s [%(levelname)s] [%(filename)s:%(lineno)d] %(message)s",
                         handlers=[logging.StreamHandler()])
-    trojai_config = TrojaiConfig.load_json(args.trojai_config_filepath)
-    actor_manager = ActorManager.load_json(trojai_config)
-    leaderboard = Leaderboard.load_json(trojai_config, args.name)
+    test_harness_config = TestHarnessConfig.load_json(args.test_harness_config_filepath)
+    actor_manager = ActorManager.load_json(test_harness_config)
+    leaderboard = Leaderboard.load_json(test_harness_config, args.name)
     submission_manager = SubmissionManager.load_json(leaderboard)
     results_manager = ResultsManager()
 
     submission_manager.generate_round_results_csv(results_manager, leaderboard, actor_manager, overwrite_csv=False)
-
-def update_configuration_latest(args):
-    trojai_config = TrojaiConfig.load_json(args.trojai_config_filepath)
-    actor_manager = ActorManager.load_json(trojai_config)
-
-    leaderboard_names = []
-
-    if args.name is not None:
-        leaderboard_names.append(args.name)
-    else:
-        for name in trojai_config.archive_leaderboard_names:
-            leaderboard_names.append(name)
-        for name in trojai_config.active_leaderboard_names:
-            leaderboard_names.append(name)
-
-    for name in leaderboard_names:
-        leaderboard = Leaderboard.load_json(trojai_config, name)
-
-        old_submission_config = None
-        backup_filepath = os.path.join(os.path.dirname(leaderboard.submissions_filepath), '{}_submissions_backup.json'.format(leaderboard.name))
-
-        if not os.path.exists(leaderboard.submissions_filepath):
-            print('Warning: Unable to find {}, skipping...'.format(leaderboard.submissions_filepath))
-            continue
-
-        with open(leaderboard.submissions_filepath, 'r') as fp:
-            old_submission_config = json.load(fp)
-
-        if os.path.exists(backup_filepath):
-            print('Error, backup already exists, cancelling')
-            # return
-
-        with open(backup_filepath, 'w') as fp:
-            json.dump(old_submission_config, fp, indent=2)
-
-
-        new_submission_manager = SubmissionManager(leaderboard.name)
-
-        if '_SubmissionManager__submissions' in old_submission_config:
-            submissions_dict = old_submission_config['_SubmissionManager__submissions']
-            for actor_uuid, submissions_list in submissions_dict.items():
-                for submission_dict in submissions_list:
-                    actor = actor_manager.get_from_uuid(actor_uuid)
-
-                    g_email = None
-                    g_filename = None
-                    g_file_id = None
-                    now = datetime.datetime.now()
-                    g_temp_timestamp = now.strftime("%Y-%m-%dT%H:%M:%S")
-                    g_timestamp = None
-
-                    if 'g_file' in submission_dict:
-                        g_file_dict = submission_dict['g_file']
-                        g_email = get_value(g_file_dict, 'email')
-                        g_filename = get_value(g_file_dict, 'name')
-                        g_file_id = get_value(g_file_dict, 'id')
-                        g_timestamp = get_value(g_file_dict, 'modified_epoch')
-
-                    if g_email is None or g_filename is None or g_file_id is None or g_timestamp is None:
-                        print('Failed to parse g_file for {}... skipping'.format(leaderboard.submissions_filepath))
-                        continue
-
-                    g_file = GoogleDriveFile(g_email, g_filename, g_file_id, g_temp_timestamp)
-                    g_file.modified_epoch = g_timestamp
-
-                    data_split_name = get_value(submission_dict, 'data_split_name')
-                    provenance = get_value(submission_dict, 'provenance')
-                    submission_epoch = get_value(submission_dict, 'submission_epoch')
-                    slurm_queue_name = get_value(submission_dict, 'slurm_queue_name')
-
-                    if data_split_name is None or provenance is None or submission_epoch is None or slurm_queue_name is None:
-                        print('Failed to parse parameters for {}... skipping'.format(leaderboard.submissions_filepath))
-                        continue
-
-                    new_submission = Submission(g_file, actor, leaderboard, data_split_name, provenance, submission_epoch, slurm_queue_name)
-
-                    # Remove unneeded attributes
-                    del submission_dict['g_file']
-                    del submission_dict['py/object']
-
-                    # Copy over all attributes
-                    update_object_values(new_submission, submission_dict)
-
-                    new_submission_manager.add_submission(actor, new_submission)
-
-        new_submission_manager.save_json(leaderboard)
-        print('finished writing updated submission manager: {}'.format(leaderboard.name))
 
 
 if __name__ == "__main__":
@@ -1150,33 +978,23 @@ if __name__ == "__main__":
     subparser = parser.add_subparsers(dest='cmd', required=True)
 
     merge_submissions_parser = subparser.add_parser('merge-submissions')
-    merge_submissions_parser.add_argument('--trojai-config-filepath', type=str, help='The filepath to the main trojai config', required=True)
+    merge_submissions_parser.add_argument('--test-harness-config-filepath', type=str, help='The filepath to the main test harness config', required=True)
     merge_submissions_parser.add_argument('--name', type=str, help='The name of the leaderboards', required=True)
     merge_submissions_parser.add_argument('--new-submissions-filepath', type=str, help='The filepath to the new submissions to merge into the leaderboard', required=True)
     merge_submissions_parser.set_defaults(func=merge_submissions)
 
     recompute_metrics_parser = subparser.add_parser('recompute-metrics')
-    recompute_metrics_parser.add_argument('--trojai-config-filepath', type=str, help='The filepath to the main trojai config', required=True)
+    recompute_metrics_parser.add_argument('--test-harness-config-filepath', type=str, help='The filepath to the main test harness config', required=True)
     recompute_metrics_parser.add_argument('--name', type=str, help='The name of the leaderboards or None if rerun all leaderboards', required=False, default=None)
-    recompute_metrics_parser.add_argument('--unsafe', action='store_true', help='Disables trojai lock (useful for debugging only)')
+    recompute_metrics_parser.add_argument('--unsafe', action='store_true', help='Disables test harness lock (useful for debugging only)')
     recompute_metrics_parser.add_argument('--new-only', action='store_true', help='Whether to compute new metrics only or not, if this is not set, then all metrics will be recomputed')
     recompute_metrics_parser.add_argument('--skip-upload-existing', action='store_true', help='Skips uploading files generated from metrics that already exist in Google drive')
     recompute_metrics_parser.set_defaults(func=recompute_metrics)
 
     generate_results_csv_parser = subparser.add_parser('generate-results-csv', help='Generates the RESULTS CSV for a round')
-    generate_results_csv_parser.add_argument('--trojai-config-filepath', type=str, help='The filepath to the main trojai config', required=True)
+    generate_results_csv_parser.add_argument('--test-harness-config-filepath', type=str, help='The filepath to the main test harness config', required=True)
     generate_results_csv_parser.add_argument('--name', type=str, help='The name of the leaderboards', required=True)
     generate_results_csv_parser.set_defaults(func=generate_results_csv)
-
-    dump_metaparameters_csv_parser = subparser.add_parser('dump-metaparameters')
-    dump_metaparameters_csv_parser.add_argument('--trojai-config-filepath', type=str, help='The filepath to the main trojai config', required=True)
-    dump_metaparameters_csv_parser.add_argument('--name', type=str, help='The name of the leaderboards', default=None)
-    dump_metaparameters_csv_parser.set_defaults(func=dump_metaparameters_csv)
-
-    update_config_parser = subparser.add_parser('update-config')
-    update_config_parser.add_argument('--trojai-config-filepath', type=str, help='The filepath to the main trojai config', required=True)
-    update_config_parser.add_argument('--name', type=str, help='The name of the leaderboard to update, if not specified then will update all leaderboards', required=False, default=None)
-    update_config_parser.set_defaults(func=update_configuration_latest)
 
     args = parser.parse_args()
     args.func(args)

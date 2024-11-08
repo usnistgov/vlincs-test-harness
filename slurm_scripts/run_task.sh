@@ -17,18 +17,18 @@ while [[ $# -gt 0 ]]; do
   --result-dirpath)
     shift
     RESULT_DIRPATH="$1" ;;
-  --trojai-config-filepath)
+  --test-harness-config-filepath)
     shift
-    TROJAI_CONFIG_FILEPATH="$1" ;;
+    CONFIG_FILEPATH="$1" ;;
   --leaderboard-name)
     shift
     LEADERBOARD_NAME="$1" ;;
   --data-split-name)
     shift
     DATA_SPLIT_NAME="$1" ;;
-  --trojai-test-harness-dirpath)
+  --test-harness-dirpath)
     shift
-    TROJAI_TEST_HARNESS_DIRPATH="$1" ;;
+    TEST_HARNESS_DIRPATH="$1" ;;
   --python-exec)
     shift
     PYTHON_EXEC="$1" ;;
@@ -62,7 +62,7 @@ fi
 
 if [ -z "${EXECUTE_LOCAL-}" ]; then
   echo "Normal execution"
-  PYTHONPATH="$TROJAI_TEST_HARNESS_DIRPATH" "$PYTHON_EXEC" -u "$TASK_EXECUTOR_FILEPATH" --team-name "$TEAM_NAME" --team-email "$TEAM_EMAIL" --container-filepath "$SUBMISSION_FILEPATH" --result-dirpath "$RESULT_DIRPATH" --trojai-config-filepath "$TROJAI_CONFIG_FILEPATH" --leaderboard-name "$LEADERBOARD_NAME" --data-split-name "$DATA_SPLIT_NAME" --vm-name "$SLURM_JOB_NODELIST_PACK_GROUP_1" --job-id "$SLURM_JOB_ID"
+  PYTHONPATH="$TEST_HARNESS_DIRPATH" "$PYTHON_EXEC" -u "$TASK_EXECUTOR_FILEPATH" --team-name "$TEAM_NAME" --team-email "$TEAM_EMAIL" --container-filepath "$SUBMISSION_FILEPATH" --result-dirpath "$RESULT_DIRPATH" --test-harness-config-filepath "$CONFIG_FILEPATH" --leaderboard-name "$LEADERBOARD_NAME" --data-split-name "$DATA_SPLIT_NAME" --vm-name "$SLURM_JOB_NODELIST_PACK_GROUP_1" --job-id "$SLURM_JOB_ID"
 else
   echo "Executing locally"
   if [ -z "${CUSTOM_HOME-}" ]; then
@@ -72,6 +72,6 @@ else
   if [ -z "${CUSTOM_SCRATCH-}" ]; then
     CUSTOM_SCRATCH="/scratch/$USER"
   fi
-  PYTHONPATH="$TROJAI_TEST_HARNESS_DIRPATH" "$PYTHON_EXEC" -u "$TASK_EXECUTOR_FILEPATH" --team-name "$TEAM_NAME" --team-email "$TEAM_EMAIL" --container-filepath "$SUBMISSION_FILEPATH" --result-dirpath "$RESULT_DIRPATH" --trojai-config-filepath "$TROJAI_CONFIG_FILEPATH" --leaderboard-name "$LEADERBOARD_NAME" --data-split-name "$DATA_SPLIT_NAME" --vm-name "local" --custom-remote-home "$CUSTOM_HOME" --custom-remote-scratch "$CUSTOM_SCRATCH" --job-id "$SLURM_JOB_ID"
+  PYTHONPATH="$TEST_HARNESS_DIRPATH" "$PYTHON_EXEC" -u "$TASK_EXECUTOR_FILEPATH" --team-name "$TEAM_NAME" --team-email "$TEAM_EMAIL" --container-filepath "$SUBMISSION_FILEPATH" --result-dirpath "$RESULT_DIRPATH" --test-harness-config-filepath "$CONFIG_FILEPATH" --leaderboard-name "$LEADERBOARD_NAME" --data-split-name "$DATA_SPLIT_NAME" --vm-name "local" --custom-remote-home "$CUSTOM_HOME" --custom-remote-scratch "$CUSTOM_SCRATCH" --job-id "$SLURM_JOB_ID"
 fi
 

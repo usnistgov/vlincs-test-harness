@@ -11,13 +11,13 @@ from leaderboards import json_io
 from leaderboards import time_utils
 
 
-class TrojaiMail(object):
+class VLINCSMail(object):
 
     DEUGGING = True
 
     SERVER = "smtp.nist.gov"
-    FROM = 'trojai@nist.gov'
-    CACHE_FILEPATH = '/tmp/trojai-mail-cache.json'
+    FROM = 'vlincs@nist.gov'
+    CACHE_FILEPATH = '/tmp/vlincs-mail-cache.json'
 
     def __init__(self):
         self.sent_cache = list()
@@ -40,7 +40,7 @@ class TrojaiMail(object):
         self.save_cache()
 
     def send(self, to: str, subject: str, message: str):
-        if TrojaiMail.DEUGGING:
+        if VLINCSMail.DEUGGING:
             return
 
         try:

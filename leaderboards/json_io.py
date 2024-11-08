@@ -12,14 +12,14 @@ import jsonpickle
 import logging
 import traceback
 
-from leaderboards.mail_io import TrojaiMail
+from leaderboards.mail_io import VLINCSMail
 
 
 def write(filepath, obj, with_lock=True):
     if not filepath.endswith('.json'):
         raise RuntimeError("Expecting a file ending in '.json', got: {}".format(filepath))
     if with_lock:
-        lock_file = '/var/lock/trojai-json_io-lockfile'
+        lock_file = '/var/lock/vlincs-json_io-lockfile'
         with open(lock_file, 'w') as lfh:
             try:
                 fcntl.lockf(lfh, fcntl.LOCK_EX)
@@ -29,7 +29,7 @@ def write(filepath, obj, with_lock=True):
             except Exception as ex:
                 logging.error(ex)
                 msg = 'json_io failed writing file "{}" releasing file lock regardless.{}'.format(filepath, traceback.format_exc())
-                TrojaiMail().send('trojai@nist.gov','json_io write fallback lockfile release',msg)
+                VLINCSMail().send('vlincs@nist.gov', 'json_io write fallback lockfile release', msg)
                 raise
             finally:
                 fcntl.lockf(lfh, fcntl.LOCK_UN)
@@ -51,7 +51,7 @@ def read(filepath):
         raise
     except:
         msg = 'json_io failed reading file "{}" releasing file lock regardless.{}'.format(filepath, traceback.format_exc())
-        TrojaiMail().send('trojai@nist.gov','json_io write fallback lockfile release',msg)
+        VLINCSMail().send('vlincs@nist.gov', 'json_io write fallback lockfile release', msg)
         raise
     return obj
 

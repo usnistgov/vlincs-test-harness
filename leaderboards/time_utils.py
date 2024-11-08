@@ -6,6 +6,8 @@
 
 import datetime
 import re
+from datetime import timezone
+
 import matplotlib.dates as mdate
 
 
@@ -15,7 +17,7 @@ def convert_epoch_to_iso(epoch: float) -> str:
     :param epoch: A float
     :return str: ISO time-date string
     """
-    return datetime.datetime.utcfromtimestamp(epoch).strftime("%Y-%m-%dT%H:%M:%S")
+    return datetime.datetime.fromtimestamp(epoch, timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
 
 
 def convert_epoch_to_psudo_iso(epoch: float) -> str:
@@ -26,7 +28,8 @@ def convert_epoch_to_psudo_iso(epoch: float) -> str:
     """
     # not actual iso format, '-' and ':' have been removed
     # datetime.datetime.utcfromtimestamp(epoch).isoformat()
-    return datetime.datetime.utcfromtimestamp(epoch).strftime("%Y%m%dT%H%M%S")
+
+    return datetime.datetime.fromtimestamp(epoch, timezone.utc).strftime("%Y%m%dT%H%M%S")
 
 
 def get_current_epoch() -> int:

@@ -1,10 +1,10 @@
 from setuptools import setup
 
 setup(
-    name='trojai-test-harness',
+    name='vlincs-test-harness',
     version='1.0',
-    packages=['data_science', 'data_science.one_off', 'leaderboards', 'local_evaluator'],
-    url='https://github.com/usnistgov/trojai-test-harness',
+    packages=['leaderboards'],
+    url='https://github.com/usnistgov/vlincs-test-harness',
     license='',
     author='Tim Blattner',
     author_email='timothy.blattner@nist.gov',
@@ -23,11 +23,11 @@ setup(
     'dominate',
     'GitPython',
     'httplib2',
-    'sklearn',
+    'scikit-learn',
     'airium',
     'pandas',
     'matplotlib',
     'msgpack'
     ],
-    description='Trojai Test Harness'
+    description='VLINCS Test Harness'
 )
