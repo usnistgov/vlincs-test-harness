@@ -15,20 +15,20 @@ The leaderboard's task is unique per leaderboard, and each dataset should be in-
 All components are configured based on a couple of json files:
 1. test_harness_config.json -- Configuration for all of the test harness
 2. leaderboard configs -- Describes a leaderboard and its datasets
-3. actors -- Describes all actors in VLINCs
+3. actors -- Describes all actors in VLINCS
 4. submissions -- Describes the submissions into a leaderboard
 
 
-## Setup VLINCs Back-end
+## Setup VLINCS Back-end
 
-1. Run test_harness_config.py to create VLINCs configuration json file
+1. Run test_harness_config.py to create VLINCS configuration json file
 2. Run leaderboard.py "init" to create a leaderboard (specify --add-default-datasplit, to add "test, sts, holdout, and train" datasets, should only be done after they are added into the datasets folder, use the name "LEADERBOARD_NAME-SPLIT_NAME-dataset")
 3. Run leaderboard.py "add-dataset" to add datasets to a leaderboard (for any datasets )
 4. Run actor.py "add-actor" to add an actor
 
 Customize test_harness_config.json, and json files in leaderboard-configs directory.  
 
-## Setup VLINCs Front-end
+## Setup VLINCS Front-end
 
 1. Clone https://github.com/usnistgov/vlincs html   (place into html folder or as configured in test_harness_config.json)
 2. git checkout nist-pages (web-hook page)
@@ -49,7 +49,7 @@ https://console.developers.google.com/
   Click on 'Credentials' in the LHS page menu.
   + Click on 'Configure Consent Screen'
   + Select 'Internal' for 'User Type' and click on 'Create'
-  + Set the 'Application name' field to 'VLINCs'
+  + Set the 'Application name' field to 'VLINCS'
   + Add the following scope: '../auth/drive'
   + Click on 'Save'
 
@@ -58,7 +58,7 @@ https://console.developers.google.com/
   + Click on 'Create Credentials'
   + Choose 'OAuth Client ID'
   + Choose 'Other' as 'Application type'
-  + Set 'Name' to 'VLINCs'
+  + Set 'Name' to 'VLINCS'
   + Click on 'Save' or 'Create'
 
 	Creates 'OAuth client' and gives 'Client ID' and 'Client Secret',
@@ -126,7 +126,7 @@ python actor_manager.py --add-actor="<team name>,<submitting email>" --config-fi
 
 -------------------------------------------------------------------------------
 
-# Restrictions for Files Shared with VLINCs Drive
+# Restrictions for Files Shared with VLINCS Drive
 
 
 # FAQ
@@ -137,7 +137,7 @@ STS (slurm queue test) has vms: 61, db
 
 ES (slurm queue production) has vms: 3b, 60, 86, da 
 
-## To share a file with VLINCs Google Drive user
+## To share a file with VLINCS Google Drive user
 
 1. Upload the file in question to your Google Drive account
 2. Right click on the file and select "Share"
@@ -150,6 +150,6 @@ ES (slurm queue production) has vms: 3b, 60, 86, da
 3. Remove the people the file is shared with as required.
 4. Click "Save changes"
 
-## File Shared with VLINCs Drive user does not show up in VLINCs's Drive 'Shared with me' folder.
+## File Shared with VLINCS Drive user does not show up in VLINCS's Drive 'Shared with me' folder.
 
-If vlincs@nist.gov removes a file shared with it, that file will not show up in the vlincs@nist.gov Drive again. The file will need to be deleted and a new copy uploaded and shared with vlincs@nist.gov. Using the drive_io python tools, if the file exists in the target Google Drive account it will modify that existing file, not replace it, preventing the file from showing up for VLINCs Drive if it was removed on the VLINCs side. Delete the file from the source drive, re-upload a new copy, and share the new copy with vlincs@nist.gov to re-share the file.
+If vlincs@nist.gov removes a file shared with it, that file will not show up in the vlincs@nist.gov Drive again. The file will need to be deleted and a new copy uploaded and shared with vlincs@nist.gov. Using the drive_io python tools, if the file exists in the target Google Drive account it will modify that existing file, not replace it, preventing the file from showing up for VLINCS Drive if it was removed on the VLINCS side. Delete the file from the source drive, re-upload a new copy, and share the new copy with vlincs@nist.gov to re-share the file.

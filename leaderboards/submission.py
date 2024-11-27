@@ -544,15 +544,17 @@ class Submission(object):
             submission_metrics = leaderboard.submission_metrics
             for metric_name, metric in submission_metrics.items():
                 if metric.write_html:
-                    metric_value = filtered_df[metric_name].values[0]
+                    metric_dict = filtered_df[metric_name].values[0]
 
-                    if metric_value is None or math.isnan(float(metric_value)):
-                        metric_value = ''
+                    for metric_key, metric_value in metric_dict.items():
+                        if metric_value is None or math.isnan(float(metric_value)):
+                            metric_value = ''
 
-                    if isinstance(metric_value, float):
-                        a.td(_t=str(round(metric_value, metric.html_decimal_places)))
-                    else:
-                        a.td(_t=str(metric_value))
+                        if isinstance(metric_value, float):
+                            a.td(_t=str(round(metric_value, metric.html_decimal_places)))
+                        else:
+                            a.td(_t=str(metric_value))
+
 
             rounded_execution_time = self.execution_runtime
             if rounded_execution_time is not None:
@@ -716,6 +718,12 @@ class SubmissionManager(object):
                     valid_submissions[actor_uuid].append(submission)
 
         evaluation_metric_name = leaderboard.evaluation_metric_name
+        evaluation_metric_sub_name = None
+        if '::' in evaluation_metric_name:
+            eval_metric_split = evaluation_metric_name.split('::')
+            evaluation_metric_name = eval_metric_split[0]
+            evaluation_metric_sub_name = eval_metric_split[1]
+
         submission_metrics = leaderboard.submission_metrics
 
         df = leaderboard.load_results_df(results_manager)
@@ -728,8 +736,10 @@ class SubmissionManager(object):
                         with a.tr():
                             a.th(klass='th-sm', _t='Team')
                             for metric_name, metric in submission_metrics.items():
-                                if metric.write_html:
-                                    a.th(klass='th-sm', _t=metric_name)
+                                metric_result_keys = metric.get_result_keys()
+                                for result_key in metric_result_keys:
+                                    if metric.write_html:
+                                        a.th(klass='th-sm', _t=result_key)
 
                             a.th(klass='th-sm', _t='Runtime (s)')
                             a.th(klass='th-sm', _t='Submission Timestamp')
@@ -752,10 +762,16 @@ class SubmissionManager(object):
                                 filtered_df = results_manager.filter_primary_key(df, s.get_submission_epoch_str_primary(), data_split_name, actor_uuid)
                                 if filtered_df is None:
                                     print('Why you none...')
+
                                 if filtered_df[evaluation_metric_name] is not None:
-                                    value = filtered_df[evaluation_metric_name].values[0]
-                                    if best_submission_score is None or metric.compare(value, best_submission_score):
-                                        best_submission_score = value
+                                    results_dict = filtered_df[evaluation_metric_name].values[0]
+                                    if evaluation_metric_sub_name is None or evaluation_metric_name not in results_dict:
+                                        evaluation_metric_sub_name = results_dict.keys()[0]
+
+                                    result_value = results_dict[evaluation_metric_sub_name]
+
+                                    if best_submission_score is None or metric.compare(result_value, best_submission_score, result_key_name=evaluation_metric_sub_name):
+                                        best_submission_score = result_value
                                         best_submission = s
 
                             if best_submission is not None:
@@ -790,8 +806,10 @@ class SubmissionManager(object):
                         with a.tr():
                             a.th(klass='th-sm', _t='Team')
                             for metric_name, metric in submission_metrics.items():
-                                if metric.write_html:
-                                    a.th(klass='th-sm', _t=metric_name)
+                                metric_result_keys = metric.get_result_keys()
+                                for result_key in metric_result_keys:
+                                    if metric.write_html:
+                                        a.th(klass='th-sm', _t=result_key)
 
                             a.th(klass='th-sm', _t='Runtime (s)')
                             a.th(klass='th-sm', _t='Submission Timestamp')

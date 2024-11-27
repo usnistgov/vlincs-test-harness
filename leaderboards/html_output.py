@@ -40,8 +40,17 @@ def get_leaderboard_javascript_content(leaderboard: Leaderboard):
                     column_name = 'Submission Timestamp'
                     order = 'desc'
                 else:
-                    column_name = leaderboard.evaluation_metric_name
-                    order = 'asc'
+                    evaluation_metric_name = leaderboard.evaluation_metric_name
+                    evaluation_metric_sub_name = evaluation_metric_name
+                    if '::' in evaluation_metric_name:
+                        eval_metric_split = evaluation_metric_name.split(':')
+                        evaluation_metric_name = eval_metric_split[0]
+                        evaluation_metric_sub_name = eval_metric_split[1]
+
+                    metric = leaderboard.submission_metrics[evaluation_metric_name]
+                    column_name = evaluation_metric_sub_name
+
+                    order = metric.get_sort_order()
                 # split_name = data_split_name
 
             content += """if ($('#{}').find("th:contains('{}')").length > 0)\n{{""".format(key, column_name)

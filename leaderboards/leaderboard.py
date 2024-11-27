@@ -22,7 +22,7 @@ from leaderboards.drive_io import DriveIO
 from leaderboards.python_utils import update_object_values, get_value
 from leaderboards.test_harness_config import TestHarnessConfig
 from leaderboards import json_io
-from leaderboards.dataset import DatasetManager, Dataset
+from leaderboards.dataset import DatasetManager, Dataset, VideoLINCSDataset
 from leaderboards.metrics import *
 from leaderboards.tasks import *
 from leaderboards.summary_metrics import *
@@ -30,11 +30,11 @@ from leaderboards.results_manager import ResultsManager
 
 
 class Leaderboard(object):
-    LEADERBOARD_TYPES = []
+    LEADERBOARD_TYPES = ['vlincs']
 
-    ALL_TASK_NAMES = {}
+    ALL_TASK_NAMES = {'take_home': TakeHomeTask}
 
-    ALL_METRIC_NAMES = {}
+    ALL_METRIC_NAMES = {'test': TestMetric}
 
     ALL_SUMMARY_METRIC_NAMES = {}
 
@@ -191,9 +191,9 @@ class Leaderboard(object):
         dataset = self.dataset_manager.get(data_split_name)
         return dataset.timeout_time_sec
 
-    def get_num_models(self, data_split_name):
+    def get_num_videos(self, data_split_name):
         dataset = self.dataset_manager.get(data_split_name)
-        return dataset.get_num_models()
+        return dataset.get_num_videos()
 
     def check_instance_data(self, test_harness_config: TestHarnessConfig):
         has_updated = False
@@ -215,24 +215,10 @@ class Leaderboard(object):
                     can_submit: bool,
                     slurm_queue_name: str,
                     slurm_nice: int,
-                    has_source_data: bool,
-                    auto_delete_submission: bool,
-                    auto_execute_split_names: list,
                     generate_metadata_csv: bool=False,
                     on_html: bool=False):
-        if self.dataset_manager.has_dataset(split_name):
-            raise RuntimeError('Dataset already exists in DatasetManager: {}'.format(split_name))
+        raise NotImplementedError()
 
-        dataset = Dataset(test_harness_config, self.name, split_name, can_submit, slurm_queue_name, slurm_nice, has_source_data,
-                          auto_delete_submission=auto_delete_submission, auto_execute_split_names=auto_execute_split_names)
-        if self.task.verify_dataset(self.name, dataset, self.required_files):
-            self.dataset_manager.add_dataset(dataset)
-            if generate_metadata_csv:
-                self.generate_metadata_csv(overwrite_csv=True)
-
-            self.initialize_html_options(split_name, on_html)
-            return True
-        return False
 
     def initialize_directories(self):
         os.makedirs(self.submission_dirpath, exist_ok=True)
@@ -303,10 +289,10 @@ class Leaderboard(object):
                     with a.div(klass='tab-pane fade {}'.format(active_show), id='{}-{}'.format(self.name, data_split), role='tabpanel', **{'aria-labelledby': 'tab-{}-{}'.format(self.name, data_split)}):
                         with a.div(klass='card-body card-body-cascade'):
                             dataset = self.get_dataset(data_split)
-                            # TODO: Might need to update filename format
+                            # TODO: Might need to update submission filename format
                             required_format = 'Required filename format: "{}_{}_&lt;Submission Name&gt;.simg"'.format(self.name, data_split)
                             accepting_submissions_info = 'Accepting submissions: {}'.format(dataset.can_submit and not is_archived and is_accepting_submissions)
-                            model_info = 'Number of models in {}, {}: {}'.format(self.name, data_split, self.get_num_models(data_split))
+                            model_info = 'Number of videos in {}, {}: {}'.format(self.name, data_split, self.get_num_videos(data_split))
                             time_info = 'Execution timeout (hh:mm:ss): {}'.format(str(datetime.timedelta(seconds=self.get_timeout_time_sec(data_split))))
 
                             if is_archived:
@@ -340,9 +326,17 @@ class Leaderboard(object):
                 else:
                     if self.dataset_manager.has_dataset(split_name) and self.evaluation_metric_name is not None:
                         sort_order = 'desc'
-                        if self.evaluation_metric_name in self.submission_metrics:
-                            sort_order = self.submission_metrics[self.evaluation_metric_name].get_sort_order()
-                        self.html_table_sort_options[key] = {'column': self.evaluation_metric_name,
+
+                        evaluation_metric_name = self.evaluation_metric_name
+                        evaluation_metric_sub_name = None
+                        if '::' in evaluation_metric_name:
+                            eval_metric_split = evaluation_metric_name.split(':')
+                            evaluation_metric_name = eval_metric_split[0]
+                            evaluation_metric_sub_name = eval_metric_split[1]
+
+                        if evaluation_metric_name in self.submission_metrics:
+                            sort_order = self.submission_metrics[evaluation_metric_name].get_sort_order()
+                        self.html_table_sort_options[key] = {'column': evaluation_metric_sub_name,
                                                              'order': sort_order, 'split_name': split_name}
                     else:
                         self.html_table_sort_options[key] = {'column': 'Submission Timestamp', 'order': 'asc',
@@ -405,6 +399,7 @@ class Leaderboard(object):
 
         # Rearrange columns slightly
         columns = all_df.columns.tolist()
+        # TODO: Update column orders
         column_order = ['model_name', 'ground_truth', 'data_split']
         remove_columns = ['converged', 'nonconverged_reason', 'Unnamed: 0']
 
@@ -454,6 +449,235 @@ class Leaderboard(object):
         return np.nan
 
     def process_metrics(self, g_drive: DriveIO, results_manager: ResultsManager, data_split_name: str, execution_results_dirpath: str, actor_name: str, actor_uuid: str, submission_epoch_str: str, processed_metrics: list, skip_upload_existing: bool):
+        raise NotImplementedError()
+
+class VideoLINCSLeaderboard(Leaderboard):
+
+    DEFAULT_METRICS = [TestMetric]
+    DEFAULT_EVALUATION_METRIC_NAME = 'TestMetric'
+
+    DEFAULT_EXCLUDED_FILES = []
+    DEFAULT_REQUIRED_FILES = []
+
+    DEFAULT_DATASET_SPLIT_NAMES = ['test', 'sts']
+    DEFAULT_SUBMISSION_DATASET_SPLIT_NAMES = ['test', 'sts']
+
+    VALID_TASK_NAMES = {'take_home': TakeHomeTask}
+
+    VALID_METRIC_NAMES = {
+        'TestMetric': TestMetric
+    }
+
+    def __init__(self, name: str, task_name: str, test_harness_config: TestHarnessConfig, add_default_data_split: bool):
+        super().__init__(name, task_name, test_harness_config)
+
+        if self.task_name not in VideoLINCSLeaderboard.VALID_TASK_NAMES:
+            raise RuntimeError('Invalid task name: {}'.format(self.task_name))
+
+        self.task = VideoLINCSLeaderboard.VALID_TASK_NAMES[self.task_name](test_harness_config, self.name)
+        self.evaluate_metric_name = TestMetric().get_name()
+
+        self.excluded_files.extend(VideoLINCSLeaderboard.DEFAULT_EXCLUDED_FILES)
+        self.required_files.extend(VideoLINCSLeaderboard.DEFAULT_REQUIRED_FILES)
+
+        for metric in VideoLINCSLeaderboard.DEFAULT_METRICS:
+            new_metric = metric()
+            self.submission_metrics[new_metric.get_name()] = new_metric
+
+        if add_default_data_split:
+            for split_name in VideoLINCSLeaderboard.DEFAULT_DATASET_SPLIT_NAMES:
+                if split_name in VideoLINCSLeaderboard.DEFAULT_SUBMISSION_DATASET_SPLIT_NAMES:
+                    can_submit = True
+                    on_html = True
+                else:
+                    can_submit = False
+                    on_html = False
+
+                auto_delete_submission = False
+
+                # TODO: Need to add logic on if the task is take home
+                if split_name == 'sts':
+                    slurm_queue_name = Leaderboard.STS_SLURM_QUEUE_NAME
+                    slurm_nice = 0
+                else:
+                    slurm_queue_name = Leaderboard.GENERAL_SLURM_QUEUE_NAME
+
+                self.add_dataset(test_harness_config, split_name, can_submit, slurm_queue_name, slurm_nice, on_html=on_html)
+
+        self.initialize_directories()
+        # TODO: Decide on metadata CSV
+        #self.generate_metadata_csv()
+
+    def process_metrics(self, g_drive: DriveIO, results_manager: ResultsManager, data_split_name: str, execution_results_dirpath: str, actor_name: str, actor_uuid: str, submission_epoch_str: str, processed_metrics: list, skip_upload_existing: bool):
+        # Initialize error strings to return
+        errors = {}
+        new_processed_metric_names = []
+        web_display_parse_errors = ''
+
+        # Load results dataframe
+        df = self.load_results_df(results_manager)
+
+        # Check to make sure that all metrics exist in the dataframe
+        missing_columns = []
+        for metric_name, metric in self.submission_metrics.items():
+            if metric.store_result and metric_name not in df.columns:
+                missing_columns.append(metric_name)
+
+        # Add all missing metric columns, each with default value None
+        if len(missing_columns) > 0:
+            df = df.assign(**{col: None for col in missing_columns})
+
+        filtered_df = results_manager.filter_primary_key(df, submission_epoch_str, data_split_name, actor_uuid)
+        update_entry = {}
+        metrics_to_compute = []
+
+        # If the entry already exists, then we need to check for missing/empty metrics
+        if filtered_df is not None:
+            if len(filtered_df) > 1:
+                logging.error('Found {} entries for submission {}, split {}, actor {}'.format(len(filtered_df), submission_epoch_str, data_split_name, actor_name))
+
+            submission_metric_names = self.submission_metrics.keys()
+
+            # Check for metrics to compute
+            for metric_name in submission_metric_names:
+                if processed_metrics is None or metric_name not in processed_metrics:
+                    metrics_to_compute.append(metric_name)
+        # Entry is new, so we are creating a new row
+        else:
+            update_entry = {'submission_timestamp': submission_epoch_str, 'data_split': data_split_name,
+                            'actor_UUID': actor_uuid, 'actor_name': actor_name}
+            # Add all metrics to compute
+            metrics_to_compute.extend(self.submission_metrics.keys())
+
+        if len(metrics_to_compute) > 0:
+            # Load ground truth and results
+            gt_dict: typing.OrderedDict[str, typing.OrderedDict] = self.get_dataset(data_split_name).load_ground_truth()
+
+            results = {}
+            num_missing_results = 0
+            for video_name in gt_dict.keys():
+                result_filepath = os.path.join(execution_results_dirpath,'{}.txt'.format(video_name))
+                result_df = self.load_result(result_filepath)
+                results[video_name] = result_df
+
+                if result_df is None:
+                    num_missing_results += 1
+
+            if num_missing_results > 0:
+                if num_missing_results == len(gt_dict):
+                    web_display_parse_errors += ":No Results:"
+                else:
+                    web_display_parse_errors += ":Missing Results:"
+
+            # TODO: Update 'update_entry' to contain columns of interest relevant for for results df
+            # TODO: Do we need a metadata_df
+            metadata_df = None
+
+            external_share_files = []
+            actor_share_files = []
+
+            for metric_name in metrics_to_compute:
+                metric = self.submission_metrics[metric_name]
+
+                # TODO: Update to be a VLINCS Metric
+                if isinstance(metric, VLINCSMetric):
+                    metric_output = metric.compute(results, gt_dict, metadata_df, actor_name, self.name, data_split_name, execution_results_dirpath)
+
+                    new_processed_metric_names.append(metric_name)
+
+                    if metric.store_result:
+                        metric_result = metric_output['result']
+                        if metric_result is not None:
+                            update_entry[metric_name] = metric_result
+                        else:
+                            logging.warning('{} Metric {} is slated to return a result, but the result was None'.format(self.name, metric_name))
+
+                    files = metric_output['files']
+
+                    if files is not None:
+                        if isinstance(files, str):
+                            files = [files]
+
+                        if metric.share_with_actor:
+                            actor_share_files.extend(files)
+
+                        if metric.share_with_external:
+                            external_share_files.extend(files)
+                else:
+                    logging.warning(
+                        'Invalid metric type: {}, expected VideoLINCS for leaderboard {}'.format(type(metric), self.name))
+                    continue
+
+            # Update entry or add entry to result dataframe
+            if filtered_df is not None:
+                df.loc[filtered_df.index[0], update_entry.keys()] = update_entry.values()
+            else:
+                df.loc[len(df)] = update_entry
+
+            # Upload metric files with external and actor Google Drive folders
+            if len(external_share_files) > 0 or len(actor_share_files) > 0:
+                actor_submission_folder_id, external_actor_submission_folder_id = g_drive.get_submission_actor_and_external_folder_ids(
+                    actor_name, self.name, data_split_name)
+
+                if external_actor_submission_folder_id is not None:
+                    # if len(external_share_files) > 0:
+                    #     g_drive.enqueue_file_upload(external_share_files, folder_id=external_actor_submission_folder_id)
+                    for file in external_share_files:
+                        g_drive.upload(file, folder_id=external_actor_submission_folder_id,
+                                       skip_existing=skip_upload_existing)
+
+                if actor_submission_folder_id is not None:
+                    # if len(actor_share_files) > 0:
+                    #     g_drive.enqueue_file_upload(actor_share_files, folder_id=actor_submission_folder_id)
+                    for file in actor_share_files:
+                        g_drive.upload(file, folder_id=actor_submission_folder_id,
+                                       skip_existing=skip_upload_existing)
+
+        if len(web_display_parse_errors) != 0:
+            errors['web_display_parse_errors'] = web_display_parse_errors
+
+        self.update_results_df(results_manager, df)
+
+        return errors, new_processed_metric_names
+
+    def add_dataset(self, test_harness_config: TestHarnessConfig,
+                    split_name: str,
+                    can_submit: bool,
+                    slurm_queue_name: str,
+                    slurm_nice: int,
+                    generate_metadata_csv: bool=False,
+                    on_html: bool=False):
+        if self.dataset_manager.has_dataset(split_name):
+            raise RuntimeError('Dataset already exists in DatasetManager: {}'.format(split_name))
+
+        dataset = VideoLINCSDataset(test_harness_config, self.name, split_name, can_submit, slurm_queue_name, slurm_nice)
+        if self.dataset_manager.add_dataset(dataset):
+            # TODO: Decide on metadata CSV
+            # if generate_metadata_csv:
+            #     self.generate_metadata_csv(overwrite_csv=True)
+
+            self.initialize_html_options(split_name, on_html)
+            return True
+        return False
+
+    def load_result(self, result_filepath):
+        if not os.path.exists(result_filepath):
+            return None
+        return pd.read_csv(result_filepath, header=None, names=VideoLINCSDataset.GROUND_TRUTH_COLUMNS)
+
+    def get_training_dataset_name(self):
+        raise NotImplementedError()
+
+    def update_results_csv(self, result_df: pd.DataFrame, results_manager: ResultsManager, submission_epoch: int, data_split: str, actor_name: str, actor_uuid: str):
+        raise NotImplementedError()
+
+    def get_valid_metric(self, metric_name):
+        raise NotImplementedError()
+
+    def get_valid_summary_metric(self, metric_name):
+        raise NotImplementedError()
+
+    def get_training_dataset_name(self):
         raise NotImplementedError()
 
 

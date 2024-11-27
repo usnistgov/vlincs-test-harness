@@ -14,9 +14,7 @@ import subprocess
 
 
 def main(test_harness_config: TestHarnessConfig, leaderboard: Leaderboard, data_split_name: str,
-         vm_name: str, team_name: str, team_email: str, submission_filepath: str, result_dirpath: str,
-         custom_remote_home=None, custom_remote_scratch=None, job_id=None,
-         custom_metaparameter_filepath=None, subset_model_ids=None, custom_evaluate_python_env_filepath=None):
+         vm_name: str, team_name: str, team_email: str, submission_filepath: str, results_dirpath: str, job_id: str):
 
     actor_manager = ActorManager.load_json(test_harness_config)
     actor = actor_manager.get_from_name(team_name)
@@ -32,18 +30,14 @@ def main(test_harness_config: TestHarnessConfig, leaderboard: Leaderboard, data_
     if not os.path.exists(submission_dirpath):
         os.makedirs(submission_dirpath)
 
-    if not os.path.exists(result_dirpath):
-        os.makedirs(result_dirpath)
+    if not os.path.exists(results_dirpath):
+        os.makedirs(results_dirpath)
 
     submission_metadata_filepath = os.path.join(submission_dirpath, team_name + '.metadata.json')
-    # error_filepath = os.path.join(result_dirpath, 'errors.txt')
-    info_file = os.path.join(result_dirpath, 'info.json')
-
+    # error_filepath = os.path.join(results_dirpath, 'errors.txt')
+    info_file = os.path.join(results_dirpath, 'info.json')
     try:
-        if vm_name == Task.LOCAL_VM_IP:
-            vm_ip = Task.LOCAL_VM_IP
-        else:
-            vm_ip = test_harness_config.vms[vm_name]
+        vm_ip = test_harness_config.vms[vm_name]
     except:
         msg = 'VM "{}" ended up in the wrong SLURM queue.\n{}'.format(vm_name, traceback.format_exc())
         errors += ":VM:"
@@ -52,14 +46,6 @@ def main(test_harness_config: TestHarnessConfig, leaderboard: Leaderboard, data_
         VLINCSMail().send(to='vlincs@nist.gov', subject='VM "{}" In Wrong SLURM Queue'.format(vm_name), message=msg)
         raise
 
-
-    custom_remote_scratch_with_job_id = None
-
-    if vm_ip == Task.LOCAL_VM_IP:
-        custom_remote_scratch_with_job_id = os.path.join(custom_remote_scratch, job_id)
-
-    if custom_evaluate_python_env_filepath is None:
-        custom_evaluate_python_env_filepath = test_harness_config.evaluate_python_env
     task : Task = leaderboard.task
     dataset = leaderboard.get_dataset(data_split_name)
     train_dataset = None
@@ -102,69 +88,58 @@ def main(test_harness_config: TestHarnessConfig, leaderboard: Leaderboard, data_
     errors += task.run_basic_checks(vm_ip, vm_name)
 
     # Step 4) Check task parameters in container (files and directories, schema checker)
-    submission_errors = task.run_submission_checks(submission_filepath)
+    submission_errors = task.run_submission_checks(submission_filepath, dataset)
     errors += submission_errors
 
-    # Step 4a) Check schema
-    schema_errors = task.run_submission_schema_header_checks(submission_filepath)
-    errors += schema_errors
+    # Step 4a) Copy in environment to VM
+    errors += task.copy_in_env(vm_ip, vm_name, test_harness_config)
 
+    # Step 5) Run basic VM cleanups (scratch)
+    errors += task.cleanup_vm(vm_ip, vm_name)
 
-    if actor.type == 'performer' and (submission_errors or schema_errors) and team_name != 'vlincs-example':
-        logging.info('Failed submission and/or schema checks. Aborting execution.')
-    else:
-        # Step 4b) Copy in environment to VM
-        errors += task.copy_in_env(vm_ip, vm_name, test_harness_config, custom_remote_home, custom_remote_scratch_with_job_id)
+    # Add some delays
+    time.sleep(2)
 
-        # Step 5) Run basic VM cleanups (scratch)
-        errors += task.cleanup_vm(vm_ip, vm_name, custom_remote_home, custom_remote_scratch_with_job_id)
+    # Step 6) Copy in and update permissions task data/scripts (submission, eval_scripts, training dataset, model dataset, other per-task data (tokenizers), source_data)
+    errors += task.copy_in_task_data(vm_ip, vm_name, submission_filepath, dataset, train_dataset, leaderboard.excluded_files)
 
-        # Add some delays
-        time.sleep(2)
+    # Add some delays
+    time.sleep(2)
 
-        # Step 6) Copy in and update permissions task data/scripts (submission, eval_scripts, training dataset, model dataset, other per-task data (tokenizers), source_data)
-        errors += task.copy_in_task_data(vm_ip, vm_name, submission_filepath, dataset, train_dataset, leaderboard.excluded_files, custom_remote_home, custom_remote_scratch_with_job_id, custom_metaparameter_filepath)
+    # Step 7) Execute submission and check errors
+    errors += task.execute_submission(vm_ip, vm_name, test_harness_config.evaluate_python_env, submission_filepath, dataset, train_dataset, leaderboard.excluded_files, info_dict, results_dirpath)
 
-        # Add some delays
-        time.sleep(2)
+    # Add some delays
+    time.sleep(2)
 
-        # Step 7) Execute submission and check errors
-        errors += task.execute_submission(vm_ip, vm_name, custom_evaluate_python_env_filepath, submission_filepath, dataset, train_dataset, leaderboard.excluded_files, info_dict, custom_remote_home, custom_remote_scratch_with_job_id, custom_metaparameter_filepath, subset_model_ids)
+    # Step 8) Copy out results
+    errors += task.copy_out_results(vm_ip, vm_name, results_dirpath)
 
-        # Add some delays
-        time.sleep(2)
+    # Add some delays
+    time.sleep(2)
 
-        # Step 8) Copy out results
-        errors += task.copy_out_results(vm_ip, vm_name, result_dirpath, custom_remote_home, custom_remote_scratch_with_job_id)
+    # Step 9) Process submissions within taskk
+    errors += task.process_metrics(results_dirpath, dataset, leaderboard.submission_metrics, team_name, leaderboard.name)
 
-        # Add some delays
-        time.sleep(2)
+    # Step 10) Re-run basic VM cleanups
+    # TODO add back in
+    # errors += task.cleanup_vm(vm_ip, vm_name, custom_remote_home, custom_remote_scratch_with_job_id)
 
-        # Step 9) Re-run basic VM cleanups
-        # TODO add back in
-        # errors += task.cleanup_vm(vm_ip, vm_name, custom_remote_home, custom_remote_scratch_with_job_id)
-
-        logging.info('**************************************************')
-        logging.info('Container Execution Complete for team: {}'.format(team_name))
-        logging.info('**************************************************')
+    logging.info('**************************************************')
+    logging.info('Container Execution Complete for team: {}'.format(team_name))
+    logging.info('**************************************************')
 
     # Step 10) Update info dictionary (execution, errors)
     info_dict['errors'] = errors
-    task.package_results(result_dirpath, info_dict)
-
-    # delete job ID scratch
-    if vm_ip == Task.LOCAL_VM_IP:
-        if os.path.exists(custom_remote_scratch_with_job_id):
-            os.rmdir(custom_remote_scratch_with_job_id)
 
     # Build per model execution time dictionary
     model_execution_time_dict = dict()
-    for model_execution_time_file_name in os.listdir(result_dirpath):
+    for model_execution_time_file_name in os.listdir(results_dirpath):
         if not model_execution_time_file_name.endswith('-walltime.txt'):
             continue
 
         model_name = model_execution_time_file_name.split('-walltime')[0]
-        model_execution_time_filepath = os.path.join(result_dirpath, model_execution_time_file_name)
+        model_execution_time_filepath = os.path.join(results_dirpath, model_execution_time_file_name)
 
         if not os.path.exists(model_execution_time_filepath):
             continue
@@ -219,18 +194,6 @@ if __name__ == '__main__':
     parser.add_argument('--vm-name', type=str,
                         help='The name of the vm.',
                         required=True)
-    parser.add_argument('--custom-remote-home', type=str,
-                        help='The custom home directory to stage scripts in',
-                        default=None)
-    parser.add_argument('--custom-remote-scratch', type=str,
-                        help='The custom scratch directory',
-                        default=None)
-    parser.add_argument('--custom-evaluate-python-env-filepath', type=str,
-                        help='The filepath to the python environment that will be used for evaluation', default=None)
-
-    parser.add_argument('--custom-metaparameters-filepath', type=str, help='The custom metaparameters filepath to use', default=None)
-    parser.add_argument('--model-ids-subset', nargs='*', help='The list of model IDs to subset when launching', default=None)
-
     parser.add_argument('--job-id', type=str, help='The slurm job ID', default=None)
 
     args = parser.parse_args()
@@ -240,8 +203,7 @@ if __name__ == '__main__':
     leaderboard = Leaderboard.load_json(test_harness_config, args.leaderboard_name)
 
     main(test_harness_config, leaderboard, args.data_split_name, args.vm_name, args.team_name, args.team_email,
-         args.container_filepath, args.result_dirpath, args.custom_remote_home, args.custom_remote_scratch, args.job_id,
-         args.custom_metaparameters_filepath, args.model_ids_subset, args.custom_evaluate_python_env_filepath)
+         args.container_filepath, args.results_dirpath, args.job_id)
 
 
 

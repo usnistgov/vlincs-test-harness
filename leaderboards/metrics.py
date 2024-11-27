@@ -4,21 +4,9 @@
 
 # You are solely responsible for determining the appropriateness of using and distributing the software and you assume all risks associated with its use, including but not limited to the risks and costs of program errors, compliance with applicable laws, damage to or loss of data, programs or equipment, and the unavailability or interruption of operation. This software is not intended to be used in any situation where a failure could cause risk of injury or damage to property. The software developed by NIST employees is not subject to copyright protection within the United States.
 
-import json
-
-import numpy as np
-import sklearn.metrics
+import typing
 import pandas as pd
-import logging
 
-import matplotlib.pyplot as plt
-from matplotlib.offsetbox import AnchoredText
-
-from typing import Dict, List, Optional, Union
-
-import os
-
-from leaderboards import fs_utils
 
 
 
@@ -33,6 +21,9 @@ class Metric(object):
         self.html_priority = 0
         self.html_decimal_places = 5
 
+    def get_result_keys(self):
+        raise NotImplementedError()
+
     def get_name(self):
         raise NotImplementedError()
 
@@ -40,5 +31,38 @@ class Metric(object):
     def get_sort_order(self):
         return 'desc'
 
-    def compare(self, computed, baseline):
+    def compare(self, computed, baseline, result_key_name=None):
         raise NotImplementedError()
+
+class VLINCSMetric(Metric):
+
+    def __init__(self, write_html: bool, share_with_actor: bool, store_result: bool,
+                 share_with_external: bool):
+        super().__init__(write_html, share_with_actor, store_result, share_with_external)
+
+    # Returns a dictionary with the following:
+    # 'result': None, or dictionary based on get_result_keys
+    # 'files': None or list of files saved
+    def compute(self, results_dict: typing.Dict[str, pd.DataFrame], ground_truth_dict: typing.Dict[str, typing.OrderedDict], metadata_df: pd.DataFrame,
+                actor_name: str, leaderboard_name: str, data_split_name: str,
+                output_dirpath: str):
+        raise NotImplementedError()
+
+
+class TestMetric(VLINCSMetric):
+    def __init__(self):
+        super().__init__(True, False, True, False)
+
+    def get_result_keys(self):
+        return ['testing']
+
+    def compute(self, results_dict: typing.Dict[str, pd.DataFrame], ground_truth_dict: typing.Dict[str, typing.OrderedDict], metadata_df: pd.DataFrame,
+                actor_name: str, leaderboard_name: str, data_split_name: str,
+                output_dirpath: str):
+        return {'result': {'testing': 1.0}, 'files': None}
+
+    def get_name(self):
+        return 'TestMetric'
+
+    def compare(self, computed, baseline, result_key_name=None):
+        return False

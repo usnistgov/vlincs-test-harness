@@ -1,20 +1,18 @@
+import json
 import logging
-import os.path
+import os
+import shutil
 import subprocess
-import time
 import typing
-import glob
 from typing import List
 from leaderboards.mail_io import VLINCSMail
 from leaderboards.dataset import Dataset
 from leaderboards.test_harness_config import TestHarnessConfig
+from leaderboards.metrics import Metric, VLINCSMetric
 
 
 def check_gpu(host):
-    if host == Task.LOCAL_VM_IP:
-        child = subprocess.Popen(['nvidia-smi'])
-    else:
-        child = subprocess.Popen(['ssh', '-q', 'vlincs@'+host, 'nvidia-smi'])
+    child = subprocess.Popen(['ssh', '-q', 'vlincs@'+host, 'nvidia-smi'])
     return child.wait()
 
 
@@ -33,34 +31,21 @@ def cleanup_scratch(host, remote_scratch):
         logging.error('Failed to cleanup scratch, errors with passing path: {}, it must not be an empty string'.format(remote_scratch))
         return -1
 
-    if host == Task.LOCAL_VM_IP:
-        all_files = glob.glob('{}/*'.format(remote_scratch))
-        child = subprocess.Popen(['rm', '-rf'] + all_files)
-    else:
-        child = subprocess.Popen(['ssh', '-q', 'vlincs@'+host, 'rm', '-rf', '{}/*'.format(remote_scratch)])
+    child = subprocess.Popen(['ssh', '-q', 'vlincs@'+host, 'rm', '-rf', '{}/*'.format(remote_scratch)])
     return child.wait()
 
 
 def create_directory_on_vm(host, dirpath: str):
-    if host == Task.LOCAL_VM_IP:
-        params = ['mkdir', '-p', dirpath]
-    else:
-        params = ['ssh', '-q', 'vlincs@' + host, 'mkdir', '-p', dirpath]
+    params = ['ssh', '-q', 'vlincs@' + host, 'mkdir', '-p', dirpath]
     child = subprocess.Popen(params)
     return child.wait()
 
 def rsync_file_to_vm(host, source_filepath, remote_path, source_params = [], remote_params = []):
     params = []
-    if host == Task.LOCAL_VM_IP:
-        params.extend(['rsync'])
-    else:
-        params.extend(['rsync', '-e', 'ssh -q'])
+    params.extend(['rsync', '-e', 'ssh -q'])
 
     params.extend(source_params)
-    if host == Task.LOCAL_VM_IP:
-        params.extend([source_filepath, remote_path])
-    else:
-        params.extend([source_filepath, 'vlincs@' + host + ':' + remote_path])
+    params.extend([source_filepath, 'vlincs@' + host + ':' + remote_path])
     params.extend(remote_params)
 
     logging.debug(' '.join(params))
@@ -71,17 +56,10 @@ def rsync_file_to_vm(host, source_filepath, remote_path, source_params = [], rem
 
 def rsync_dir_to_vm(host, source_dirpath, remote_dirpath, source_params = [], remote_params = []):
     params = []
-    if host == Task.LOCAL_VM_IP:
-        params.extend(['rsync', '-ar', '--prune-empty-dirs', '--delete'])
-    else:
-        params.extend(['rsync', '-ar', '-e', 'ssh -q', '--prune-empty-dirs', '--delete'])
+    params.extend(['rsync', '-ar', '-e', 'ssh -q', '--prune-empty-dirs', '--delete'])
     params.extend(source_params)
 
-    if host == Task.LOCAL_VM_IP:
-        import shlex
-        params.extend([shlex.quote(source_dirpath), shlex.quote(remote_dirpath)])
-    else:
-        params.extend([source_dirpath, 'vlincs@' + host + ':' + remote_dirpath])
+    params.extend([source_dirpath, 'vlincs@' + host + ':' + remote_dirpath])
     params.extend(remote_params)
 
     logging.debug(' '.join(params))
@@ -92,11 +70,7 @@ def rsync_dir_to_vm(host, source_dirpath, remote_dirpath, source_params = [], re
 
 def scp_dir_from_vm(host, remote_dirpath, local_dirpath):
     logging.debug('remote: {} to {}'.format(remote_dirpath, local_dirpath))
-    if host == Task.LOCAL_VM_IP:
-        cmd = ['cp', '-r'] + glob.glob('{}/*'.format(remote_dirpath)) + [local_dirpath]
-        # child = subprocess.Popen(cmd)
-    else:
-        cmd = ['scp', '-r', '-q', 'vlincs@{}:{}/*'.format(host, remote_dirpath), local_dirpath]
+    cmd = ['scp', '-r', '-q', 'vlincs@{}:{}/*'.format(host, remote_dirpath), local_dirpath]
         # child = subprocess.Popen(cmd)
     logging.info(' '.join(cmd))
     rc = subprocess.run(cmd)
@@ -118,7 +92,8 @@ def check_subprocess_error(sc, errors, msg, send_mail=False, subject=''):
 
 
 class Task(object):
-    LOCAL_VM_IP = 'local'
+
+    METRIC_RESULT_FILENAME = 'metric_results.json'
 
     def __init__(self):
         pass
@@ -129,42 +104,99 @@ class Task(object):
     def get_remote_dataset_dirpath(self, remote_dirpath, leaderboard_name):
         raise NotImplementedError()
 
-    def verify_dataset(self, leaderboard_name, dataset: Dataset, required_files: List[str]):
-        raise NotImplementedError()
-
     def run_basic_checks(self, vm_ip, vm_name):
         raise NotImplementedError()
 
-    def run_submission_checks(self, submission_filepath):
+    def run_submission_checks(self, submission_filepath, dataset: Dataset):
         raise NotImplementedError()
 
-    def run_submission_schema_header_checks(self, submission_filepath):
+    def copy_in_env(self, vm_ip, vm_name, test_harness_config: TestHarnessConfig):
         raise NotImplementedError()
 
-    def copy_in_env(self, vm_ip, vm_name, test_harness_config: TestHarnessConfig, custom_remote_home: str=None, custom_remote_scratch: str=None):
+    def copy_in_task_data(self, vm_ip, vm_name, submission_filepath: str, dataset: Dataset, training_dataset: Dataset, excluded_files: List[str]):
         raise NotImplementedError()
 
-    def copy_in_task_data(self, vm_ip, vm_name, submission_filepath: str, dataset: Dataset, training_dataset: Dataset, excluded_files: List[str], custom_remote_home: str=None, custom_remote_scratch: str=None, custom_metaparameter_filepath: str=None):
+    def execute_submission(self, vm_ip, vm_name, python_execution_env_filepath: str, submission_filepath: str, dataset: Dataset, training_dataset: Dataset, excluded_files: List[str], info_dict: dict, results_dirpath: str):
         raise NotImplementedError()
 
-    def execute_submission(self, vm_ip, vm_name, python_execution_env_filepath: str, submission_filepath: str, dataset: Dataset, training_dataset: Dataset, excluded_files: List[str], info_dict: dict, custom_remote_home: str=None, custom_remote_scratch: str=None, custom_metaparameter_filepath: str=None, subset_model_ids: list=None, custom_result_dirpath: str=None):
+    def get_basic_execute_args(self, vm_ip: str, submission_filepath: str, dataset: Dataset, training_dataset: Dataset, excluded_files: List[str]):
         raise NotImplementedError()
 
-    def get_basic_execute_args(self, vm_ip: str, submission_filepath: str, dataset: Dataset, training_dataset: Dataset, excluded_files: List[str],  custom_remote_home: str, custom_remote_scratch: str , custom_metaparameter_filepath: str, subset_model_ids: list, custom_result_dirpath: str):
+    def get_custom_execute_args(self, vm_ip: str, submission_filepath: str, dataset: Dataset, training_dataset: Dataset):
         raise NotImplementedError()
 
-    def get_custom_execute_args(self, vm_ip: str, submission_filepath: str, dataset: Dataset, training_dataset: Dataset, custom_remote_home: str, custom_remote_scratch: str, custom_result_dirpath: str):
+    def copy_out_results(self, vm_ip, vm_name, results_dirpath):
         raise NotImplementedError()
 
-    def copy_out_results(self, vm_ip, vm_name, result_dirpath, custom_remote_home: str=None, custom_remote_scratch: str=None):
+    def cleanup_vm(self, vm_ip, vm_name):
         raise NotImplementedError()
 
-    def package_results(self, result_dirpath: str, info_dict: dict):
+    def process_metrics(self, results_dirpath: str, dataset: Dataset, metrics: typing.Dict[str, Metric], actor_name: str, leaderboard_name: str):
         raise NotImplementedError()
 
-    def cleanup_vm(self, vm_ip, vm_name, custom_remote_home: str=None, custom_remote_scratch: str=None):
-        raise NotImplementedError()
 
-    def load_ground_truth(self, dataset: Dataset) -> typing.OrderedDict[str, float]:
-        raise NotImplementedError()
+class TakeHomeTask(Task):
+    def __init__(self, test_harness_config: TestHarnessConfig, leaderboard_name: str):
+        super().__init__()
 
+    def check_instance_params(self, test_harness_config: TestHarnessConfig):
+        has_updated = False
+        return has_updated
+
+    def get_remote_dataset_dirpath(self, remote_dirpath, leaderboard_name):
+        pass
+
+    def run_basic_checks(self, vm_ip, vm_name):
+        errors = ''
+        return errors
+
+    def run_submission_checks(self, submission_filepath, dataset: Dataset):
+        errors = ''
+        return errors
+
+    def copy_in_env(self, vm_ip, vm_name, test_harness_config: TestHarnessConfig):
+        errors = ''
+        return errors
+
+    def copy_in_task_data(self, vm_ip, vm_name, submission_filepath: str, dataset: Dataset, training_dataset: Dataset, excluded_files: List[str]):
+        errors = ''
+        return errors
+
+    def execute_submission(self, vm_ip, vm_name, python_execution_env_filepath: str, submission_filepath: str, dataset: Dataset, training_dataset: Dataset, excluded_files: List[str], info_dict: dict, results_dirpath: str):
+        errors = ''
+        shutil.unpack_archive(submission_filepath, results_dirpath)
+
+        if not dataset.verify_results(results_dirpath):
+            errors += ':Missing Results:'
+
+        return errors
+
+    def get_basic_execute_args(self, vm_ip: str, submission_filepath: str, dataset: Dataset, training_dataset: Dataset, excluded_files: List[str]):
+        return []
+
+    def get_custom_execute_args(self, vm_ip: str, submission_filepath: str, dataset: Dataset, training_dataset: Dataset):
+        return []
+
+    def copy_out_results(self, vm_ip, vm_name, results_dirpath):
+        errors = ''
+        return errors
+
+    def cleanup_vm(self, vm_ip, vm_name):
+        errors = ''
+        return errors
+
+    def process_metrics(self, results_dirpath: str, dataset: Dataset, metrics: typing.Dict[str, Metric], actor_name: str, leaderboard_name: str):
+        results = dataset.load_results(results_dirpath)
+        ground_truth = dataset.load_ground_truth()
+        metadata_df = None
+
+        all_results = {}
+
+        for metric_name, metric in metrics.items():
+            if isinstance(metric, VLINCSMetric):
+                metric_output = metric.compute(results, ground_truth, metadata_df, actor_name, leaderboard_name, dataset.split_name, results_dirpath)
+                all_results[metric_name] = metric_output
+
+        metric_result_filepath = os.path.join(results_dirpath, Task.METRIC_RESULT_FILENAME)
+        with open(metric_result_filepath, 'w') as fp:
+            json.dump(all_results, fp, indent=4)
