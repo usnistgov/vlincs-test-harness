@@ -35,7 +35,12 @@ while [[ $# -gt 0 ]]; do
   --task-executor-filepath)
     shift
     TASK_EXECUTOR_FILEPATH="$1" ;;
+  --submission-io)
+    shift
+    SUBMISSION_IO="$1" ;;
   *)
+
+
     EXTRA_ARGS+=("$1") ;;
   esac
   # Expose next argument
@@ -53,5 +58,5 @@ if [ -z "${SLURM_JOB_ID-}" ]; then
 fi
 
 echo "Normal execution"
-PYTHONPATH="$TEST_HARNESS_DIRPATH" "$PYTHON_EXEC" -u "$TASK_EXECUTOR_FILEPATH" --team-name "$TEAM_NAME" --team-email "$TEAM_EMAIL" --container-filepath "$SUBMISSION_FILEPATH" --result-dirpath "$RESULT_DIRPATH" --test-harness-config-filepath "$CONFIG_FILEPATH" --leaderboard-name "$LEADERBOARD_NAME" --data-split-name "$DATA_SPLIT_NAME" --vm-name "$SLURM_JOB_NODELIST_PACK_GROUP_1" --job-id "$SLURM_JOB_ID"
+PYTHONPATH="$TEST_HARNESS_DIRPATH" "$PYTHON_EXEC" -u "$TASK_EXECUTOR_FILEPATH" --team-name "$TEAM_NAME" --team-email "$TEAM_EMAIL" --container-filepath "$SUBMISSION_FILEPATH" --result-dirpath "$RESULT_DIRPATH" --test-harness-config-filepath "$CONFIG_FILEPATH" --leaderboard-name "$LEADERBOARD_NAME" --data-split-name "$DATA_SPLIT_NAME" --vm-name "$SLURM_JOB_NODELIST_PACK_GROUP_1" --job-id "$SLURM_JOB_ID" --submission-io "$SUBMISSION_IO"
 

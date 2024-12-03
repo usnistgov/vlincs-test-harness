@@ -18,7 +18,7 @@ import numpy as np
 from airium import Airium
 from typing import Union, Tuple, Dict, Any
 
-from leaderboards.drive_io import DriveIO
+from leaderboards.submission_io import SubmissionIO
 from leaderboards.python_utils import update_object_values, get_value
 from leaderboards.test_harness_config import TestHarnessConfig
 from leaderboards import json_io
@@ -448,7 +448,7 @@ class Leaderboard(object):
         # If the file did not exist, then we return nan
         return np.nan
 
-    def process_metrics(self, g_drive: DriveIO, results_manager: ResultsManager, data_split_name: str, execution_results_dirpath: str, actor_name: str, actor_uuid: str, submission_epoch_str: str, processed_metrics: list, skip_upload_existing: bool):
+    def process_metrics(self, submission_io: SubmissionIO, results_manager: ResultsManager, data_split_name: str, execution_results_dirpath: str, actor_name: str, actor_uuid: str, submission_epoch_str: str, processed_metrics: list, skip_upload_existing: bool):
         raise NotImplementedError()
 
 class VideoLINCSLeaderboard(Leaderboard):
@@ -508,7 +508,7 @@ class VideoLINCSLeaderboard(Leaderboard):
         # TODO: Decide on metadata CSV
         #self.generate_metadata_csv()
 
-    def process_metrics(self, g_drive: DriveIO, results_manager: ResultsManager, data_split_name: str, execution_results_dirpath: str, actor_name: str, actor_uuid: str, submission_epoch_str: str, processed_metrics: list, skip_upload_existing: bool):
+    def process_metrics(self, submission_io: SubmissionIO, results_manager: ResultsManager, data_split_name: str, execution_results_dirpath: str, actor_name: str, actor_uuid: str, submission_epoch_str: str, processed_metrics: list, skip_upload_existing: bool):
         # Initialize error strings to return
         errors = {}
         new_processed_metric_names = []
@@ -615,21 +615,17 @@ class VideoLINCSLeaderboard(Leaderboard):
 
             # Upload metric files with external and actor Google Drive folders
             if len(external_share_files) > 0 or len(actor_share_files) > 0:
-                actor_submission_folder_id, external_actor_submission_folder_id = g_drive.get_submission_actor_and_external_folder_ids(
+                actor_submission_folder_id, external_actor_submission_folder_id = submission_io.get_submission_actor_and_external_folder_ids(
                     actor_name, self.name, data_split_name)
 
                 if external_actor_submission_folder_id is not None:
-                    # if len(external_share_files) > 0:
-                    #     g_drive.enqueue_file_upload(external_share_files, folder_id=external_actor_submission_folder_id)
                     for file in external_share_files:
-                        g_drive.upload(file, folder_id=external_actor_submission_folder_id,
+                        submission_io.upload(file, folder_id=external_actor_submission_folder_id,
                                        skip_existing=skip_upload_existing)
 
                 if actor_submission_folder_id is not None:
-                    # if len(actor_share_files) > 0:
-                    #     g_drive.enqueue_file_upload(actor_share_files, folder_id=actor_submission_folder_id)
                     for file in actor_share_files:
-                        g_drive.upload(file, folder_id=actor_submission_folder_id,
+                        submission_io.upload(file, folder_id=actor_submission_folder_id,
                                        skip_existing=skip_upload_existing)
 
         if len(web_display_parse_errors) != 0:

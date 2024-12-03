@@ -5,29 +5,21 @@
 # You are solely responsible for determining the appropriateness of using and distributing the software and you assume all risks associated with its use, including but not limited to the risks and costs of program errors, compliance with applicable laws, damage to or loss of data, programs or equipment, and the unavailability or interruption of operation. This software is not intended to be used in any situation where a failure could cause risk of injury or damage to property. The software developed by NIST employees is not subject to copyright protection within the United States.
 import time
 import traceback
-import logging
 import logging.handlers
-import os
-from threading import Thread, Lock, Condition
-from queue import Queue
-from typing import Dict
 
 import fcntl
-
 from leaderboards.test_harness_config import TestHarnessConfig
-from leaderboards.drive_io import DriveIO, UploadWorker
+from leaderboards.drive_io import DriveIO
+from leaderboards.submission_io import SubmissionIO
 from leaderboards.actor import Actor, ActorManager
 from leaderboards.submission import Submission, SubmissionManager
 from leaderboards import time_utils
 from leaderboards.leaderboard import *
 from leaderboards.html_output import update_html_pages
 from leaderboards.results_manager import ResultsManager
-
 import warnings
 
-
-
-def process_new_submission(test_harness_config: TestHarnessConfig, g_drive: DriveIO, actor: Actor, active_leaderboards: Dict[str, Leaderboard], active_submission_managers: Dict[str, SubmissionManager]) -> None:
+def process_new_submission(test_harness_config: TestHarnessConfig, submission_io: SubmissionIO, actor: Actor, active_leaderboards: Dict[str, Leaderboard], active_submission_managers: Dict[str, SubmissionManager]) -> None:
 
     if not test_harness_config.accepting_submissions:
         logging.info("New submissions are closed.")
@@ -44,7 +36,7 @@ def process_new_submission(test_harness_config: TestHarnessConfig, g_drive: Driv
     logging.info("Checking for new submissions from {}.".format(actor.name))
 
     # query drive for a submission by this actor
-    actor_file_list = g_drive.query_by_email(actor.email)
+    actor_file_list = submission_io.__query_by_email(actor.email)
 
     # Search for entries that contain a valid leaderboard name and dataset split
     has_general_errors = False
@@ -144,7 +136,7 @@ def process_new_submission(test_harness_config: TestHarnessConfig, g_drive: Driv
                         submission_manager.add_submission(actor, submission)
                         logging.info('Added submission file name "{}" to manager from email "{}"'.format(submission.g_file.name, actor.email))
                         exec_epoch = time_utils.get_current_epoch()
-                        submission.execute(actor, test_harness_config, exec_epoch)
+                        submission.execute(actor, test_harness_config, exec_epoch, submission_io)
                     else:
                         logging.info(
                             'Submission found is the same within one of the submissions already in the submission manager for team {}; new file name: {}, new file epoch: {}'.format(
@@ -156,7 +148,7 @@ def process_new_submission(test_harness_config: TestHarnessConfig, g_drive: Driv
                 logging.info('Team {} timeout window has not elapsed. check_epoch: {}, last_submission_epoch: {}, leaderboards: {}, data split: {}'.format(actor.name, check_epoch, actor.get_last_submission_epoch(leaderboard_name, data_split_name), leaderboard_name, data_split_name))
                 actor.update_job_status(leaderboard_name, data_split_name, 'Awaiting Timeout')
 
-def process_team(test_harness_config: TestHarnessConfig, g_drive: DriveIO, actor: Actor, active_leaderboards: Dict[str, Leaderboard], active_submission_managers: Dict[str, SubmissionManager], results_manager: ResultsManager) -> None:
+def process_team(test_harness_config: TestHarnessConfig, submission_io: SubmissionIO, actor: Actor, active_leaderboards: Dict[str, Leaderboard], active_submission_managers: Dict[str, SubmissionManager], results_manager: ResultsManager) -> None:
 
     for leaderboard_name, submission_manager in active_submission_managers.items():
         actor_submission_list = submission_manager.get_submissions_by_actor(actor)
@@ -172,15 +164,15 @@ def process_team(test_harness_config: TestHarnessConfig, g_drive: DriveIO, actor
 
                 leaderboard = active_leaderboards[submission.leaderboard_name]
 
-                submission.check(test_harness_config, results_manager, g_drive, actor, leaderboard, submission_manager, test_harness_config.log_file_byte_limit)
+                submission.check(test_harness_config, results_manager, submission_io, actor, leaderboard, submission_manager, test_harness_config.log_file_byte_limit)
 
     # look for any new submissions
     # This might modify the SubmissionManager instance
     logging.info('Done processing old/pending submission.')
-    process_new_submission(test_harness_config, g_drive, actor, active_leaderboards, active_submission_managers)
+    process_new_submission(test_harness_config, submission_io, actor, active_leaderboards, active_submission_managers)
 
 
-def main(test_harness_config: TestHarnessConfig) -> None:
+def main(test_harness_config: TestHarnessConfig, submission_io_str: str) -> None:
     start_time = time.time()
 
     # load the instance of ActorManager from the serialized json file
@@ -231,16 +223,18 @@ def main(test_harness_config: TestHarnessConfig) -> None:
 
     logging.info('Actor Manger has {} actors.'.format(len(actor_manager.get_keys())))
 
-    # Initialize parallel upload workers
-    upload_queue = Queue()
-    lock = Lock()
-    cond = Condition(lock)
+    submission_io = None
 
-    g_drive = DriveIO(test_harness_config.token_pickle_filepath, upload_queue, lock, cond)
+    if submission_io_str == 'g_drive':
+        submission_io = DriveIO(test_harness_config.token_pickle_filepath)
+    else:
+        logging.error('Invalid submission system specified: {}'.format(submission_io_str))
+        raise RuntimeError('Invalid submission system specified: {}'.format(submission_io_str))
+
 
     # TODO: Sort out how to handle multi-threaded upload
     # upload_worker_threads = 1
-    # upload_workers = UploadWorker.init_workers(upload_worker_threads, g_drive)
+    # upload_workers = UploadWorker.init_workers(upload_worker_threads, submission_io)
 
     # Loop over actors, checking if there is a submission for each
     for actor in actor_manager.get_actors():
@@ -248,7 +242,7 @@ def main(test_harness_config: TestHarnessConfig) -> None:
             logging.info('**************************************************')
             logging.info('Processing {}:'.format(actor.name))
             logging.info('**************************************************')
-            process_team(test_harness_config, g_drive, actor, active_leaderboards, active_submission_managers, results_manager)
+            process_team(test_harness_config, submission_io, actor, active_leaderboards, active_submission_managers, results_manager)
         except:
             msg = 'Exception processing actor "{}" loop:\n{}'.format(actor.name, traceback.format_exc())
             logging.error(msg)
@@ -276,7 +270,7 @@ def main(test_harness_config: TestHarnessConfig) -> None:
     for leaderboard_name, leaderboard in active_leaderboards.items():
         if leaderboard.check_for_missing_metrics:
             submission_manager = active_submission_managers[leaderboard.name]
-            submission_manager.check_for_new_metrics(results_manager, leaderboard, actor_manager, g_drive)
+            submission_manager.check_for_new_metrics(results_manager, leaderboard, actor_manager, submission_io)
             results_manager.save(leaderboard.name)
             submission_manager.save_json(leaderboard)
         else:
@@ -285,7 +279,7 @@ def main(test_harness_config: TestHarnessConfig) -> None:
     for leaderboard_name, leaderboard in archive_leaderboards.items():
         if leaderboard.check_for_missing_metrics:
             submission_manager = archive_submission_managers[leaderboard.name]
-            submission_manager.check_for_new_metrics(results_manager, leaderboard, actor_manager, g_drive)
+            submission_manager.check_for_new_metrics(results_manager, leaderboard, actor_manager, submission_io)
             results_manager.save(leaderboard.name)
             submission_manager.save_json(leaderboard)
         else:
@@ -299,7 +293,7 @@ def main(test_harness_config: TestHarnessConfig) -> None:
         if not os.path.exists(test_harness_config.summary_metrics_dirpath):
             os.makedirs(test_harness_config.summary_metrics_dirpath)
 
-        test_harness_summary_folder_id = g_drive.create_leaderboard_summary_folder()
+        test_harness_summary_folder_id = submission_io.create_leaderboard_summary_folder()
 
         # Run global metric updates for active leaderboards
         for leaderboard_name, leaderboard in active_leaderboards.items():
@@ -308,7 +302,7 @@ def main(test_harness_config: TestHarnessConfig) -> None:
             # Upload summary schema CSV
             summary_schema_csv_filepath = leaderboard.get_summary_schema_csv_filepath(test_harness_config)
             if os.path.exists(summary_schema_csv_filepath):
-                g_drive.upload(summary_schema_csv_filepath, folder_id=test_harness_summary_folder_id)
+                submission_io.upload(summary_schema_csv_filepath, folder_id=test_harness_summary_folder_id)
 
             submission_manager = active_submission_managers[leaderboard_name]
 
@@ -316,8 +310,8 @@ def main(test_harness_config: TestHarnessConfig) -> None:
 
             submission_manager.generate_round_results_csv(results_manager, leaderboard, actor_manager, overwrite_csv=False)
 
-            g_drive.upload(leaderboard.summary_metadata_csv_filepath, test_harness_summary_folder_id)
-            g_drive.upload(leaderboard.summary_results_csv_filepath, test_harness_summary_folder_id)
+            submission_io.upload(leaderboard.summary_metadata_csv_filepath, test_harness_summary_folder_id)
+            submission_io.upload(leaderboard.summary_results_csv_filepath, test_harness_summary_folder_id)
 
             metadata_df = leaderboard.load_metadata_csv_into_df()
             results_df = leaderboard.load_summary_results_csv_into_df()
@@ -326,7 +320,7 @@ def main(test_harness_config: TestHarnessConfig) -> None:
                 if data_split_name == 'sts':
                     continue
 
-                leaderboard_folder_id = g_drive.create_folder('{}_{}'.format(leaderboard_name, data_split_name), test_harness_summary_folder_id)
+                leaderboard_folder_id = submission_io.create_folder('{}_{}'.format(leaderboard_name, data_split_name), test_harness_summary_folder_id)
 
                 # Subset metadata and results dfs
                 subset_metadata_df = metadata_df[metadata_df['data_split'] == data_split_name]
@@ -340,12 +334,12 @@ def main(test_harness_config: TestHarnessConfig) -> None:
                 for summary_metric in leaderboard.summary_metrics:
                     if subset_results_df is None:
                         continue
-                        
+
                     output_files = summary_metric.compute_and_write_data(leaderboard_name, data_split_name, subset_metadata_df, subset_results_df, test_harness_config.summary_metrics_dirpath)
 
                     if summary_metric.shared_with_collaborators:
                         for file in output_files:
-                            g_drive.upload(file, leaderboard_folder_id)
+                            submission_io.upload(file, leaderboard_folder_id)
 
                     if summary_metric.add_to_html:
                         summary_html_plots.extend(output_files)
@@ -357,8 +351,8 @@ def main(test_harness_config: TestHarnessConfig) -> None:
             leaderboard.generate_metadata_csv(overwrite_csv=False)
             submission_manager.generate_round_results_csv(results_manager, leaderboard, actor_manager, overwrite_csv=False)
 
-            g_drive.upload(leaderboard.summary_metadata_csv_filepath, test_harness_summary_folder_id)
-            g_drive.upload(leaderboard.summary_results_csv_filepath, test_harness_summary_folder_id)
+            submission_io.upload(leaderboard.summary_metadata_csv_filepath, test_harness_summary_folder_id)
+            submission_io.upload(leaderboard.summary_results_csv_filepath, test_harness_summary_folder_id)
 
             metadata_df = leaderboard.load_metadata_csv_into_df()
             results_df = leaderboard.load_summary_results_csv_into_df()
@@ -367,7 +361,7 @@ def main(test_harness_config: TestHarnessConfig) -> None:
                 if data_split_name == 'sts':
                     continue
 
-                leaderboard_folder_id = g_drive.create_folder('{}_{}'.format(leaderboard_name, data_split_name), test_harness_summary_folder_id)
+                leaderboard_folder_id = submission_io.create_folder('{}_{}'.format(leaderboard_name, data_split_name), test_harness_summary_folder_id)
 
                 # Subset metadata and results dfs
                 subset_metadata_df = metadata_df[metadata_df['data_split'] == data_split_name]
@@ -378,20 +372,20 @@ def main(test_harness_config: TestHarnessConfig) -> None:
 
                     if summary_metric.shared_with_collaborators:
                         for file in output_files:
-                            g_drive.upload(file, leaderboard_folder_id)
+                            submission_io.upload(file, leaderboard_folder_id)
 
                     if summary_metric.add_to_html:
                         summary_html_plots.extend(output_files)
 
         # Share summary metrics
-        external_root_folder = g_drive.create_external_root_folder()
-        g_drive.remove_all_sharing_permissions(external_root_folder)
+        external_root_folder = submission_io.create_external_root_folder()
+        submission_io.remove_all_sharing_permissions(external_root_folder)
         for email in test_harness_config.summary_metric_email_addresses:
-            g_drive.share(external_root_folder, email)
+            submission_io.share(external_root_folder, email)
 
     # Check web-site updates
     logging.info('Updating HTML pages')
-    update_html_pages(test_harness_config, results_manager, actor_manager, active_leaderboards, active_submission_managers, archive_leaderboards, archive_submission_managers, commit_and_push=test_harness_config.commit_and_push_html, g_drive=g_drive)
+    update_html_pages(test_harness_config, results_manager, actor_manager, active_leaderboards, active_submission_managers, archive_leaderboards, archive_submission_managers, commit_and_push=test_harness_config.commit_and_push_html, submission_io=submission_io)
 
     # Write all updates to actors back to file
     logging.debug('Serializing updated actor_manger back to json.')
@@ -409,17 +403,6 @@ def main(test_harness_config: TestHarnessConfig) -> None:
 
     results_manager.save_all()
 
-    # Add None special value into queue and notify all
-    # TODO: Uncomment when multi thread upload is working
-    # with lock:
-    #     for _ in range(upload_worker_threads):
-    #         upload_queue.put([None, None])
-    #
-    #     cond.notify_all()
-    #
-    # for worker in upload_workers:
-    #     worker.join()
-
     end_time = time.time()
     exec_time = end_time - start_time
 
@@ -433,6 +416,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Check and Launch script for Test Harness challenge participants')
     parser.add_argument('--test-harness-config-filepath', type=str,
                         help='The JSON file that describes test harness.', required=True)
+    parser.add_argument('--submission-io', type=str, choices=SubmissionIO.VALID_NAMES, default='g_drive', required=False)
 
     args = parser.parse_args()
 
@@ -458,7 +442,7 @@ if __name__ == "__main__":
             #logging.getLogger().addHandler(logging.StreamHandler())
 
             logging.debug('PID file lock acquired in directory {}'.format(args.test_harness_config_filepath))
-            main(test_harness_config)
+            main(test_harness_config, args.submission_io)
         except OSError as e:
             print('check-and-launch was already running when called. {}'.format(e))
         finally:

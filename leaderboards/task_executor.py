@@ -1,4 +1,3 @@
-from leaderboards.test_harness_config import TestHarnessConfig
 from leaderboards.actor import ActorManager, Actor
 from leaderboards.leaderboard import *
 from leaderboards.mail_io import VLINCSMail
@@ -14,7 +13,7 @@ import subprocess
 
 
 def main(test_harness_config: TestHarnessConfig, leaderboard: Leaderboard, data_split_name: str,
-         vm_name: str, team_name: str, team_email: str, submission_filepath: str, results_dirpath: str, job_id: str):
+         vm_name: str, team_name: str, team_email: str, submission_filepath: str, results_dirpath: str, job_id: str, submission_io_str: str):
 
     actor_manager = ActorManager.load_json(test_harness_config)
     actor = actor_manager.get_from_name(team_name)
@@ -58,12 +57,19 @@ def main(test_harness_config: TestHarnessConfig, leaderboard: Leaderboard, data_
         submission_dir = os.path.dirname(submission_filepath)
         submission_name = os.path.basename(submission_filepath)
 
-        g_drive = DriveIO(test_harness_config.token_pickle_filepath)
-        g_drive_file = g_drive.submission_download(team_email, submission_dir, submission_metadata_filepath, leaderboard.name, data_split_name)
+        submission_io = None
 
-        if submission_name != g_drive_file.name:
+        if args.submission_io == 'g_drive':
+            submission_io = DriveIO(test_harness_config.token_pickle_filepath)
+        else:
+            logging.error('Invalid submission system specified: {}'.format(args.submission_io))
+            raise RuntimeError('Invalid submission system specified: {}'.format(args.submission_io))
+
+        submission_file = submission_io.submission_download(team_email, submission_dir, submission_metadata_filepath, leaderboard.name, data_split_name)
+
+        if submission_name != submission_file.name:
             logging.info('Name of file has changed since launching submission')
-            submission_name = g_drive_file.name
+            submission_name = submission_file.name
             submission_filepath = os.path.join(submission_dir, submission_name)
 
         # Scan download
@@ -118,7 +124,7 @@ def main(test_harness_config: TestHarnessConfig, leaderboard: Leaderboard, data_
     # Add some delays
     time.sleep(2)
 
-    # Step 9) Process submissions within taskk
+    # Step 9) Process submissions within task
     errors += task.process_metrics(results_dirpath, dataset, leaderboard.submission_metrics, team_name, leaderboard.name)
 
     # Step 10) Re-run basic VM cleanups
@@ -195,6 +201,7 @@ if __name__ == '__main__':
                         help='The name of the vm.',
                         required=True)
     parser.add_argument('--job-id', type=str, help='The slurm job ID', default=None)
+    parser.add_argument('--submission-io', type=str, choices=['g_drive'], default='g_drive', required=False)
 
     args = parser.parse_args()
 
@@ -203,7 +210,7 @@ if __name__ == '__main__':
     leaderboard = Leaderboard.load_json(test_harness_config, args.leaderboard_name)
 
     main(test_harness_config, leaderboard, args.data_split_name, args.vm_name, args.team_name, args.team_email,
-         args.container_filepath, args.results_dirpath, args.job_id)
+         args.container_filepath, args.results_dirpath, args.job_id, args.submission_io)
 
 
 

@@ -8,7 +8,7 @@ from leaderboards import json_io
 from leaderboards import time_utils
 
 
-class GoogleDriveFile(object):
+class SubmissionFile(object):
     def __init__(self, email: str, file_name: str, file_id: str, modified_timestamp: str):
         self.email = email
         self.name = file_name

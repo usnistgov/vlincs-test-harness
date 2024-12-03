@@ -19,7 +19,7 @@ from leaderboards import slurm
 from leaderboards.mail_io import VLINCSMail
 from leaderboards.test_harness_config import TestHarnessConfig
 from leaderboards.leaderboard import Leaderboard
-from leaderboards.drive_io import DriveIO
+from leaderboards.submission_io import SubmissionIO
 from leaderboards.results_manager import ResultsManager
 
 def get_leaderboard_javascript_content(leaderboard: Leaderboard):
@@ -59,7 +59,7 @@ def get_leaderboard_javascript_content(leaderboard: Leaderboard):
 
     return content
 
-def write_html_leaderboard_pages(test_harness_config: TestHarnessConfig, results_manager: ResultsManager, html_output_dirpath: str, leaderboard: Leaderboard, submission_manager: SubmissionManager, actor_manager: ActorManager, html_default_leaderboard: str, cur_epoch: int, is_archived: bool, g_drive):
+def write_html_leaderboard_pages(test_harness_config: TestHarnessConfig, results_manager: ResultsManager, html_output_dirpath: str, leaderboard: Leaderboard, submission_manager: SubmissionManager, actor_manager: ActorManager, html_default_leaderboard: str, cur_epoch: int, is_archived: bool, submission_io):
     written_files = []
 
     # Check for existence of about files for each leaderboard
@@ -101,15 +101,15 @@ def write_html_leaderboard_pages(test_harness_config: TestHarnessConfig, results
                                                       execute_window, cur_epoch, test_harness_config.job_color_key)
             written_files.append(filepath)
 
-        filepath = submission_manager.write_score_table(html_output_dirpath, results_manager, leaderboard, actor_manager, data_split_name, g_drive)
+        filepath = submission_manager.write_score_table(html_output_dirpath, results_manager, leaderboard, actor_manager, data_split_name, submission_io)
         written_files.append(filepath)
-        filepath = submission_manager.write_score_table_unique(html_output_dirpath, results_manager, leaderboard, actor_manager, data_split_name, g_drive)
+        filepath = submission_manager.write_score_table_unique(html_output_dirpath, results_manager, leaderboard, actor_manager, data_split_name, submission_io)
         written_files.append(filepath)
 
     return written_files
 
 
-def update_html_pages(test_harness_config: TestHarnessConfig, results_manager: ResultsManager, actor_manager: ActorManager, active_leaderboards_dict: dict, active_submission_managers_dict: dict, archive_leaderboards_dict: dict, archive_submission_managers_dict: dict, commit_and_push: bool, g_drive: DriveIO):
+def update_html_pages(test_harness_config: TestHarnessConfig, results_manager: ResultsManager, actor_manager: ActorManager, active_leaderboards_dict: dict, active_submission_managers_dict: dict, archive_leaderboards_dict: dict, archive_submission_managers_dict: dict, commit_and_push: bool, submission_io: SubmissionIO):
     cur_epoch = time_utils.get_current_epoch()
 
     lock_filepath = "/var/lock/htmlpush-lockfile"
@@ -177,14 +177,14 @@ def update_html_pages(test_harness_config: TestHarnessConfig, results_manager: R
                 logging.info('Generating active leaderboard pages for {}'.format(leaderboard.name))
 
                 submission_manager = active_submission_managers_dict[leaderboard.name]
-                leaderboard_filepaths = write_html_leaderboard_pages(test_harness_config, results_manager, html_output_dirpath, leaderboard, submission_manager, actor_manager, html_default_leaderboard, cur_epoch, is_archived=False, g_drive=g_drive)
+                leaderboard_filepaths = write_html_leaderboard_pages(test_harness_config, results_manager, html_output_dirpath, leaderboard, submission_manager, actor_manager, html_default_leaderboard, cur_epoch, is_archived=False, submission_io=submission_io)
                 written_files.extend(leaderboard_filepaths)
 
             for leaderboard in archive_leaderboards:
                 logging.info('Generating archive leaderboard pages for {}'.format(leaderboard.name))
 
                 submission_manager = archive_submission_managers_dict[leaderboard.name]
-                leaderboard_filepaths = write_html_leaderboard_pages(test_harness_config, results_manager, html_output_dirpath, leaderboard, submission_manager, actor_manager, html_default_leaderboard, cur_epoch, is_archived=True, g_drive=g_drive)
+                leaderboard_filepaths = write_html_leaderboard_pages(test_harness_config, results_manager, html_output_dirpath, leaderboard, submission_manager, actor_manager, html_default_leaderboard, cur_epoch, is_archived=True, submission_io=submission_io)
                 written_files.extend(leaderboard_filepaths)
 
             table_javascript_filepath = os.path.join(test_harness_config.html_repo_dirpath, 'js', 'table-init.js')

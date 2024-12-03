@@ -1,37 +1,23 @@
 # NIST-developed software is provided by NIST as a public service. You may use, copy and distribute copies of the software in any medium, provided that you keep intact this entire notice. You may improve, modify and create derivative works of the software or any portion of the software, and you may copy and distribute such modifications or works. Modified works should carry a notice stating that you changed the software and should note the date and nature of any such change. Please explicitly acknowledge the National Institute of Standards and Technology as the source of the software.
-import json
-import math
 # NIST-developed software is expressly provided "AS IS." NIST MAKES NO WARRANTY OF ANY KIND, EXPRESS, IMPLIED, IN FACT OR ARISING BY OPERATION OF LAW, INCLUDING, WITHOUT LIMITATION, THE IMPLIED WARRANTY OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT AND DATA ACCURACY. NIST NEITHER REPRESENTS NOR WARRANTS THAT THE OPERATION OF THE SOFTWARE WILL BE UNINTERRUPTED OR ERROR-FREE, OR THAT ANY DEFECTS WILL BE CORRECTED. NIST DOES NOT WARRANT OR MAKE ANY REPRESENTATIONS REGARDING THE USE OF THE SOFTWARE OR THE RESULTS THEREOF, INCLUDING BUT NOT LIMITED TO THE CORRECTNESS, ACCURACY, RELIABILITY, OR USEFULNESS OF THE SOFTWARE.
-
 # You are solely responsible for determining the appropriateness of using and distributing the software and you assume all risks associated with its use, including but not limited to the risks and costs of program errors, compliance with applicable laws, damage to or loss of data, programs or equipment, and the unavailability or interruption of operation. This software is not intended to be used in any situation where a failure could cause risk of injury or damage to property. The software developed by NIST employees is not subject to copyright protection within the United States.
-import os
+import math
 import time
-import pandas as pd
 import fcntl
 
 
-import numpy as np
-import subprocess
-import logging
 import traceback
-from typing import List, Dict
-from datetime import datetime
-from airium import Airium
-from python_utils import update_object_values, get_value
-
-from leaderboards.drive_io import DriveIO
-from leaderboards.google_drive_file import GoogleDriveFile
+from leaderboards.submission_io import SubmissionIO
+from leaderboards.submission_file import SubmissionFile
 from leaderboards.actor import Actor, ActorManager
-from leaderboards import json_io
 from leaderboards import slurm
-from leaderboards import time_utils
 from leaderboards.leaderboard import *
 from leaderboards.test_harness_config import TestHarnessConfig
 from leaderboards import hash_utils
 from leaderboards.results_manager import ResultsManager
 
 class Submission(object):
-    def __init__(self, g_file: GoogleDriveFile, actor: Actor, leaderboard: Leaderboard, data_split_name: str, provenance: str='performer', submission_epoch: int=None, slurm_queue_name: str=None, submission_leaderboard: Leaderboard = None):
+    def __init__(self, g_file: SubmissionFile, actor: Actor, leaderboard: Leaderboard, data_split_name: str, provenance: str= 'performer', submission_epoch: int=None, slurm_queue_name: str=None, submission_leaderboard: Leaderboard = None):
         self.g_file = g_file
         self.actor_uuid = actor.uuid
         self.leaderboard_name = leaderboard.name
@@ -130,7 +116,7 @@ class Submission(object):
         else:
             return True
 
-    def check(self, test_harness_config: TestHarnessConfig, results_manager: ResultsManager, g_drive: DriveIO, actor: Actor, leaderboard: Leaderboard, submission_manager: 'SubmissionManager', log_file_byte_limit: int) -> None:
+    def check(self, test_harness_config: TestHarnessConfig, results_manager: ResultsManager, submission_io: SubmissionIO, actor: Actor, leaderboard: Leaderboard, submission_manager: 'SubmissionManager', log_file_byte_limit: int) -> None:
 
         if self.active_slurm_job_name is None:
             logging.info('Submission "{}_{}" by team "{}" is not active.'.format(self.leaderboard_name, self.data_split_name, actor.name))
@@ -161,7 +147,7 @@ class Submission(object):
             logging.info('squeue does not have status for job name: {}'.format(self.active_slurm_job_name))
             # 1 entries means no state and job name was not found
             # if the job was not found, and this was a previously active submission, the results are ready for processing
-            self.process_completed_submission(test_harness_config, results_manager, actor, leaderboard, g_drive, log_file_byte_limit)
+            self.process_completed_submission(test_harness_config, results_manager, actor, leaderboard, submission_io, log_file_byte_limit)
 
             if leaderboard.is_auto_delete_submission(self.data_split_name):
                 # delete the container file to avoid filling up disk space
@@ -203,13 +189,13 @@ class Submission(object):
                                 logging.info('Added submission file name "{}" to manager for email "{}" when auto submitting for {}'.format(new_submission.g_file.name, actor.email, auto_execute_split_name))
                                 time.sleep(1)
                                 exec_epoch = time_utils.get_current_epoch()
-                                new_submission.execute(actor, test_harness_config, exec_epoch)
+                                new_submission.execute(actor, test_harness_config, exec_epoch, submission_io)
         # Unknown format coming from slurm, attempt to process results for whatever is there
         else:
             logging.warning("Incorrect format for stdout from squeue: {}".format(stdoutSplitNL))
 
             # attempt to process the result
-            self.process_completed_submission(test_harness_config, results_manager, actor, leaderboard, g_drive, log_file_byte_limit)
+            self.process_completed_submission(test_harness_config, results_manager, actor, leaderboard, submission_io, log_file_byte_limit)
 
             if leaderboard.is_auto_delete_submission(self.data_split_name):
                 # delete the container file to avoid filling up disk space
@@ -221,7 +207,7 @@ class Submission(object):
         logging.info("After Check submission: {}".format(self))
 
 
-    def process_completed_submission(self, test_harness_config: TestHarnessConfig, results_manager: ResultsManager, actor: Actor, leaderboard: Leaderboard, g_drive: DriveIO, log_file_byte_limit: int, update_actor: bool = True, print_details: bool = True, output_metaparams_csv: bool = True):
+    def process_completed_submission(self, test_harness_config: TestHarnessConfig, results_manager: ResultsManager, actor: Actor, leaderboard: Leaderboard, submission_io: SubmissionIO, log_file_byte_limit: int, update_actor: bool = True, print_details: bool = True, output_metaparams_csv: bool = True):
         logging.info('Processing completed submission for {}'.format(actor.name))
 
         ##################################################
@@ -233,7 +219,7 @@ class Submission(object):
         ##################################################
         # Fetch (or create) team directory on google drive
         ##################################################
-        actor_submission_folder_id, external_actor_submission_folder_id = g_drive.get_submission_actor_and_external_folder_ids(actor.name, leaderboard.name, self.data_split_name)
+        actor_submission_folder_id, external_actor_submission_folder_id = submission_io.get_submission_actor_and_external_folder_ids(actor.name, leaderboard.name, self.data_split_name)
 
 
         info_filepath = os.path.join(self.execution_results_dirpath, Leaderboard.INFO_FILENAME)
@@ -264,7 +250,7 @@ class Submission(object):
         submission_metadata_filepath = os.path.join(self.actor_submission_dirpath, actor.name + ".metadata.json")
         if os.path.exists(submission_metadata_filepath):
             try:
-                self.g_file = GoogleDriveFile.load_json(submission_metadata_filepath)
+                self.g_file = SubmissionFile.load_json(submission_metadata_filepath)
                 if update_actor:
                     actor.update_last_file_epoch(leaderboard.name, self.data_split_name, self.g_file.modified_epoch)
 
@@ -316,7 +302,7 @@ class Submission(object):
         ##################################################
         # Process the metrics from the submission
         ##################################################
-        error_dict, processed_metric_names = leaderboard.process_metrics(g_drive, results_manager, self.data_split_name, self.execution_results_dirpath, actor.name, actor.uuid, self.get_submission_epoch_str_primary(), self.processed_metric_names, skip_upload_existing=False)
+        error_dict, processed_metric_names = leaderboard.process_metrics(submission_io, results_manager, self.data_split_name, self.execution_results_dirpath, actor.name, actor.uuid, self.get_submission_epoch_str_primary(), self.processed_metric_names, skip_upload_existing=False)
 
         self.processed_metric_names.extend(processed_metric_names)
 
@@ -329,7 +315,7 @@ class Submission(object):
         ##################################################
         try:
             if actor_submission_folder_id is not None and os.path.exists(slurm_log_filepath):
-                g_drive.upload(slurm_log_filepath, folder_id=actor_submission_folder_id)
+                submission_io.upload(slurm_log_filepath, folder_id=actor_submission_folder_id)
             else:
                 logging.error('Failed to find slurm output log file: {}'.format(slurm_log_filepath))
                 self.web_display_parse_errors += ":Log File Missing:"
@@ -344,7 +330,7 @@ class Submission(object):
         try:
             if self.data_split_name == 'sts' or self.data_split_name == 'train':
                 if actor_submission_folder_id is not None and os.path.exists(updated_container_output_filepath):
-                    g_drive.upload(updated_container_output_filepath, folder_id=actor_submission_folder_id)
+                    submission_io.upload(updated_container_output_filepath, folder_id=actor_submission_folder_id)
                 else:
                     logging.error(
                         'Failed to find container output file: {}'.format(updated_container_output_filepath))
@@ -381,7 +367,7 @@ class Submission(object):
     def get_submission_epoch_str_primary(self):
         return time_utils.convert_epoch_to_iso(self.submission_epoch)
 
-    def execute(self, actor: Actor, test_harness_config: TestHarnessConfig, execution_epoch: int, execute_local=False, custom_home_dirpath: str=None, custom_scratch_dirpath: str=None, custom_slurm_options=None, custom_python_env_filepath: str = None) -> None:
+    def execute(self, actor: Actor, test_harness_config: TestHarnessConfig, execution_epoch: int, submission_io: SubmissionIO, custom_home_dirpath: str=None, custom_scratch_dirpath: str=None, custom_slurm_options=None, custom_python_env_filepath: str = None) -> None:
         if custom_slurm_options is None:
             custom_slurm_options = []
 
@@ -422,61 +408,34 @@ class Submission(object):
         # cmd_str_list = [slurm_script_filepath, actor.name, actor.email, submission_filepath, result_dirpath,  test_harness_config_filepath, self.leaderboard_name, self.data_split_name, test_harness_dirpath, python_executable, task_executor_script_filepath]
         # cmd_str_list = ['sbatch', '--partition', control_slurm_queue, '--parsable', '--nice={}'.format(self.slurm_nice), '--nodes', '1', '--ntasks-per-node', '1', '--cpus-per-task', '1', ':', '--partition', self.slurm_queue_name, '--nice={}'.format(self.slurm_nice), '--nodes', '1', '--ntasks-per-node', '1', '--cpus-per-task', str(cpus_per_task), '--exclusive', '-J', self.active_slurm_job_name, '--parsable', '-o', slurm_output_filepath, slurm_script_filepath, actor.name, actor.email, submission_filepath, self.execution_results_dirpath, test_harness_config_filepath, self.leaderboard_name, self.data_split_name, test_harness_dirpath, python_executable, task_executor_script_filepath]
         cmd_str_list = []
-        if execute_local:
-            if custom_home_dirpath is None or custom_scratch_dirpath is None:
-                raise RuntimeError('Local execution requires user-specified home, scratch, and slurm partition')
 
-            sbatch_control_params = ['sbatch']
-            sbatch_vm_params = ['--partition', self.slurm_queue_name, 
-            '--nice={}'.format(self.slurm_nice), 
-            '--nodes', '1', 
-            '--ntasks-per-node', '1', 
-            '--cpus-per-task', str(cpus_per_task), 
-            '-J', self.active_slurm_job_name, 
-            '--parsable', '-o', slurm_output_filepath]
-            container_launch_params = [slurm_script_filepath,
-                                       "--team-name", "{}".format(actor.name),
-                                       "--team-email", "{}".format(actor.email),
-                                       "--submission-filepath", "{}".format(submission_filepath),
-                                       "--result-dirpath", self.execution_results_dirpath,
-                                       "--test-harness-config-filepath", test_harness_config_filepath,
-                                       "--leaderboard-name", self.leaderboard_name,
-                                       "--data-split-name", self.data_split_name,
-                                       "--test-harness-dirpath", test_harness_dirpath,
-                                       "--python-exec", python_executable,
-                                       "--task-executor-filepath", task_executor_script_filepath,
-                                       "--is-local",
-                                       "--custom-home", "{}".format(custom_home_dirpath),
-                                       "--custom-scratch", "{}".format(custom_scratch_dirpath)]
-        else:
-            sbatch_control_params = ['sbatch', 
-            '--partition', control_slurm_queue, 
-            '--parsable', 
-            '--nice={}'.format(self.slurm_nice), 
-            '--nodes', '1', 
-            '--ntasks-per-node', '1', 
-            '--cpus-per-task', '1', ':']
-            sbatch_vm_params = ['--partition', self.slurm_queue_name, 
-            '--nice={}'.format(self.slurm_nice), 
-            '--nodes', '1', 
-            '--ntasks-per-node', '1', 
-            '--cpus-per-task', str(cpus_per_task), 
-            '--exclusive', '-J', self.active_slurm_job_name, 
-            '--parsable', '-o', slurm_output_filepath]
-            container_launch_params = [slurm_script_filepath,
-                                       "--team-name", "{}".format(actor.name),
-                                       "--team-email", "{}".format(actor.email),
-                                       "--submission-filepath", "{}".format(submission_filepath),
-                                       "--result-dirpath", self.execution_results_dirpath,
-                                       "--test-harness-config-filepath", test_harness_config_filepath,
-                                       "--leaderboard-name", self.leaderboard_name,
-                                       "--data-split-name", self.data_split_name,
-                                       "--test-harness-dirpath", test_harness_dirpath,
-                                       "--python-exec", python_executable,
-                                       "--task-executor-filepath", task_executor_script_filepath]
+        sbatch_control_params = ['sbatch',
+        '--partition', control_slurm_queue,
+        '--parsable',
+        '--nice={}'.format(self.slurm_nice),
+        '--nodes', '1',
+        '--ntasks-per-node', '1',
+        '--cpus-per-task', '1', ':']
+        sbatch_vm_params = ['--partition', self.slurm_queue_name,
+        '--nice={}'.format(self.slurm_nice),
+        '--nodes', '1',
+        '--ntasks-per-node', '1',
+        '--cpus-per-task', str(cpus_per_task),
+        '--exclusive', '-J', self.active_slurm_job_name,
+        '--parsable', '-o', slurm_output_filepath]
 
-
-
+        container_launch_params = [slurm_script_filepath,
+                                   "--team-name", "{}".format(actor.name),
+                                   "--team-email", "{}".format(actor.email),
+                                   "--submission-filepath", "{}".format(submission_filepath),
+                                   "--result-dirpath", self.execution_results_dirpath,
+                                   "--test-harness-config-filepath", test_harness_config_filepath,
+                                   "--leaderboard-name", self.leaderboard_name,
+                                   "--data-split-name", self.data_split_name,
+                                   "--test-harness-dirpath", test_harness_dirpath,
+                                   "--python-exec", python_executable,
+                                   "--task-executor-filepath", task_executor_script_filepath,
+                                   "--submission-io", submission_io.get_name()]
 
         if len(custom_slurm_options) > 0:
             sbatch_vm_params.extend(custom_slurm_options)
@@ -490,11 +449,6 @@ class Submission(object):
         rc = subprocess.run(cmd_str_list, capture_output=True)
         stdout = rc.stdout
         stderr = rc.stderr
-        # out = subprocess.Popen(cmd_str_list,
-        #     stdout=subprocess.PIPE,
-        #     stderr=subprocess.PIPE)
-
-        # stdout, stderr = out.communicate()
 
         # Check if there are no errors reported from sbatch
         if stderr == b'':
@@ -510,7 +464,7 @@ class Submission(object):
             self.active_slurm_job_name = None
             self.web_display_execution_errors += ":Slurm Script Error:"
 
-    def get_result_table_row(self, results_manager: ResultsManager, a: Airium, actor: Actor, leaderboard: Leaderboard, g_drive: DriveIO):
+    def get_result_table_row(self, results_manager: ResultsManager, a: Airium, actor: Actor, leaderboard: Leaderboard, submission_io: SubmissionIO):
         if self.active_slurm_job_name is not None:
             return
 
@@ -582,9 +536,9 @@ class Submission(object):
 
         return False
 
-    def compute_missing_metrics(self, results_manager: ResultsManager, actor: Actor, leaderboard: Leaderboard, g_drive: DriveIO):
+    def compute_missing_metrics(self, results_manager: ResultsManager, actor: Actor, leaderboard: Leaderboard, submission_io: SubmissionIO):
         if self.has_new_metrics(leaderboard):
-            errors, new_processed_metrics = leaderboard.process_metrics(g_drive, results_manager, self.data_split_name, self.execution_results_dirpath, actor.name, actor.uuid, self.get_submission_epoch_str_primary(), self.processed_metric_names, skip_upload_existing=False)
+            errors, new_processed_metrics = leaderboard.process_metrics(submission_io, results_manager, self.data_split_name, self.execution_results_dirpath, actor.name, actor.uuid, self.get_submission_epoch_str_primary(), self.processed_metric_names, skip_upload_existing=False)
             self.processed_metric_names.extend(new_processed_metrics)
 
         # TODO: Should we update the errors for the submission (will have to be careful to not repeat errors)
@@ -604,16 +558,16 @@ class SubmissionManager(object):
                 msg = msg + "  " + s.__str__() + "\n"
         return msg
 
-    def check_for_new_metrics(self, results_manager: ResultsManager, leaderboard: Leaderboard, actor_manager: ActorManager, g_drive: DriveIO):
+    def check_for_new_metrics(self, results_manager: ResultsManager, leaderboard: Leaderboard, actor_manager: ActorManager, submission_io: SubmissionIO):
         for actor_uuid, submissions in self.__submissions.items():
             actor = actor_manager.get_from_uuid(actor_uuid)
 
             for submission in submissions:
                 if submission.active_slurm_job_name is not None:
                     continue
-                submission.compute_missing_metrics(results_manager, actor, leaderboard, g_drive)
+                submission.compute_missing_metrics(results_manager, actor, leaderboard, submission_io)
 
-    def gather_submissions(self, results_manager: ResultsManager, leaderboard: Leaderboard, data_split_name:str, metric_name: str, metric_criteria: float, actor: Actor, g_drive: DriveIO) -> List[Submission]:
+    def gather_submissions(self, results_manager: ResultsManager, leaderboard: Leaderboard, data_split_name:str, metric_name: str, metric_criteria: float, actor: Actor, submission_io: SubmissionIO) -> List[Submission]:
         gathered_submissions = list()
 
         actor_submissions = self.__submissions[actor.uuid]
@@ -701,7 +655,7 @@ class SubmissionManager(object):
     def load_json(leaderboard: Leaderboard) -> 'SubmissionManager':
         return SubmissionManager.load_json_custom(leaderboard.submissions_filepath, leaderboard.name)
 
-    def write_score_table_unique(self, output_dirpath, results_manager: ResultsManager, leaderboard: Leaderboard, actor_manager: ActorManager, data_split_name: str, g_drive: DriveIO):
+    def write_score_table_unique(self, output_dirpath, results_manager: ResultsManager, leaderboard: Leaderboard, actor_manager: ActorManager, data_split_name: str, submission_io: SubmissionIO):
 
         result_filename = 'results-unique-{}-{}.html'.format(leaderboard.name, data_split_name)
         result_filepath = os.path.join(output_dirpath, leaderboard.name, result_filename)
@@ -775,14 +729,14 @@ class SubmissionManager(object):
                                         best_submission = s
 
                             if best_submission is not None:
-                                best_submission.get_result_table_row(results_manager, a, actor, leaderboard, g_drive)
+                                best_submission.get_result_table_row(results_manager, a, actor, leaderboard, submission_io)
 
         with open(result_filepath, 'w') as f:
             f.write(str(a))
 
         return result_filepath
 
-    def write_score_table(self, output_dirpath, result_manager: ResultsManager, leaderboard: Leaderboard, actor_manager: ActorManager, data_split_name: str, g_drive: DriveIO):
+    def write_score_table(self, output_dirpath, result_manager: ResultsManager, leaderboard: Leaderboard, actor_manager: ActorManager, data_split_name: str, submission_io: SubmissionIO):
         result_filename = 'results-{}-{}.html'.format(leaderboard.name, data_split_name)
         result_filepath = os.path.join(output_dirpath, leaderboard.name, result_filename)
         a = Airium()
@@ -821,7 +775,7 @@ class SubmissionManager(object):
                         for actor_uuid, submissions in valid_submissions.items():
                             actor = actor_manager.get_from_uuid(actor_uuid)
                             for s in submissions:
-                                s.get_result_table_row(result_manager, a, actor, leaderboard, g_drive)
+                                s.get_result_table_row(result_manager, a, actor, leaderboard, submission_io)
 
         with open(result_filepath, 'w') as f:
             f.write(str(a))
@@ -890,10 +844,9 @@ class SubmissionManager(object):
 
         return result_df
 
-    def recompute_metrics(self, test_harness_config: TestHarnessConfig, results_manager: ResultsManager, leaderboard: Leaderboard, new_only: bool, skip_upload_existing: bool):
+    def recompute_metrics(self, test_harness_config: TestHarnessConfig, results_manager: ResultsManager, leaderboard: Leaderboard, new_only: bool, skip_upload_existing: bool, submission_io: SubmissionIO):
 
         actor_manager = ActorManager.load_json(test_harness_config)
-        g_drive = DriveIO(test_harness_config.token_pickle_filepath)
 
         for actor_uuid, submissions in self.__submissions.items():
             actor = actor_manager.get_from_uuid(actor_uuid)
@@ -905,7 +858,7 @@ class SubmissionManager(object):
                         processed_metrics = submission.processed_metric_names
 
                     # This should recompute all metrics
-                    errors, new_processed_metrics = leaderboard.process_metrics(g_drive, results_manager, submission.data_split_name, submission.execution_results_dirpath, actor.name, actor.uuid, submission.get_submission_epoch_str_primary(), processed_metrics=processed_metrics, skip_upload_existing=skip_upload_existing)
+                    errors, new_processed_metrics = leaderboard.process_metrics(submission_io, results_manager, submission.data_split_name, submission.execution_results_dirpath, actor.name, actor.uuid, submission.get_submission_epoch_str_primary(), processed_metrics=processed_metrics, skip_upload_existing=skip_upload_existing)
 
                     if new_only:
                         submission.processed_metric_names.extend(new_processed_metrics)
@@ -932,8 +885,18 @@ def merge_submissions(args):
 
 
 def recompute_metrics(args):
+    from leaderboards.drive_io import DriveIO
     test_harness_config = TestHarnessConfig.load_json(args.test_harness_config_filepath)
     results_manager = ResultsManager()
+
+
+    submission_io = None
+
+    if args.submission_io == 'g_drive':
+        submission_io = DriveIO(test_harness_config.token_pickle_filepath)
+    else:
+        logging.error('Invalid submission system specified: {}'.format(args.submission_io))
+        raise RuntimeError('Invalid submission system specified: {}'.format(args.submission_io))
 
     leaderboard_names = []
 
@@ -956,7 +919,7 @@ def recompute_metrics(args):
         for name in leaderboard_names:
             leaderboard = Leaderboard.load_json(test_harness_config, name)
             submission_manager = SubmissionManager.load_json(leaderboard)
-            submission_manager.recompute_metrics(test_harness_config, results_manager, leaderboard, args.new_only, args.skip_upload_existing)
+            submission_manager.recompute_metrics(test_harness_config, results_manager, leaderboard, args.new_only, args.skip_upload_existing, submission_io)
             print('Finished recomputing metrics for {}'.format(leaderboard.name))
     else:
         with open(lock_file, 'w') as f:
@@ -966,7 +929,7 @@ def recompute_metrics(args):
                 for name in leaderboard_names:
                     leaderboard = Leaderboard.load_json(test_harness_config, name)
                     submission_manager = SubmissionManager.load_json(leaderboard)
-                    submission_manager.recompute_metrics(test_harness_config, results_manager, leaderboard, args.new_only, args.skip_upload_existing)
+                    submission_manager.recompute_metrics(test_harness_config, results_manager, leaderboard, args.new_only, args.skip_upload_existing, submission_io)
                     print('Finished recomputing metrics for {}'.format(leaderboard.name))
             except OSError as e:
                 print('check-and-launch was already running when called. {}'.format(e))
@@ -1007,6 +970,7 @@ if __name__ == "__main__":
     recompute_metrics_parser.add_argument('--unsafe', action='store_true', help='Disables test harness lock (useful for debugging only)')
     recompute_metrics_parser.add_argument('--new-only', action='store_true', help='Whether to compute new metrics only or not, if this is not set, then all metrics will be recomputed')
     recompute_metrics_parser.add_argument('--skip-upload-existing', action='store_true', help='Skips uploading files generated from metrics that already exist in Google drive')
+    recompute_metrics_parser.add_argument('--submission-io', type=str, choices=SubmissionIO.VALID_NAMES, default='g_drive', required=False)
     recompute_metrics_parser.set_defaults(func=recompute_metrics)
 
     generate_results_csv_parser = subparser.add_parser('generate-results-csv', help='Generates the RESULTS CSV for a round')
