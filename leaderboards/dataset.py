@@ -231,9 +231,9 @@ class DatasetManager(object):
         if dataset.split_name in self.datasets.keys():
             raise RuntimeError('Dataset already exists in DatasetManager: {}'.format(dataset.dataset_name))
 
-        self.datasets[dataset.split_name] = dataset
-        dataset.initialize_directories()
         if dataset.verify():
+            self.datasets[dataset.split_name] = dataset
+            dataset.initialize_directories()
             print('Created: {}'.format(dataset))
             return True
 
