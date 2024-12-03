@@ -579,7 +579,6 @@ class VideoLINCSLeaderboard(Leaderboard):
             for metric_name in metrics_to_compute:
                 metric = self.submission_metrics[metric_name]
 
-                # TODO: Update to be a VLINCS Metric
                 if isinstance(metric, VLINCSMetric):
                     metric_output = metric.compute(results, gt_dict, metadata_df, actor_name, self.name, data_split_name, execution_results_dirpath)
 
@@ -690,6 +689,9 @@ def init_leaderboard(args):
     leaderboard_type = args.leaderboard_type
 
     leaderboard = None
+
+    if leaderboard_type == 'vlincs':
+        leaderboard = VideoLINCSLeaderboard(args.name, args.task_name, test_harness_config, add_default_data_split=args.add_default_datasplit)
 
     # TODO: Update with correct leaderboard type
     # if leaderboard_type == 'trojai':

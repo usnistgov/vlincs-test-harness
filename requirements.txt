@@ -16,3 +16,4 @@ airium
 pandas
 matplotlib
 msgpack
+pyarrow
