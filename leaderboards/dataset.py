@@ -40,11 +40,11 @@ class Dataset(object):
             for split in auto_execute_split_names:
                 self.auto_execute_split_names.append(split)
 
-        num_videos = len(self)
+        num_data = len(self)
 
         self.submission_window_time_sec = Dataset.BUFFER_TIME
-        if num_videos > 0:
-            self.timeout_time_sec = num_videos * timeout_time_per_model_sec
+        if num_data > 0:
+            self.timeout_time_sec = num_data * timeout_time_per_model_sec
         else:
             if self.split_name == 'sts':
                 self.timeout_time_sec = Dataset.DEFAULT_STS_TIMEOUT_SEC
@@ -97,7 +97,7 @@ class VideoLINCSDataset(Dataset):
                  timeout_time_per_model_sec: int=600,
                  auto_delete_submission: bool=False,
                  auto_execute_split_names=None):
-        super().__init__(test_harness_config, leaderboard_name, split_name, can_submit, slurm_queue_name, slurm_nice, timeout_time_per_model_sec, auto_delete_submission, auto_execute_split_names)
+        self.dataset_dirpath: str = os.path.join(test_harness_config.datasets_dirpath, leaderboard_name, self.dataset_name)
 
         self.seqmap_filepath = os.path.join(self.dataset_dirpath, VideoLINCSDataset.SEQMAP_NAME)
         self.video_names = []
@@ -111,6 +111,9 @@ class VideoLINCSDataset(Dataset):
 
                     video_name = row[0]
                     self.video_names.append(video_name)
+
+        super().__init__(test_harness_config, leaderboard_name, split_name, can_submit, slurm_queue_name, slurm_nice, timeout_time_per_model_sec, auto_delete_submission, auto_execute_split_names)
+
 
     def verify(self):
         logging.info('Verifying dataset {} for leaderboard {}'.format(self.dataset_name, self.leaderboard_name))
