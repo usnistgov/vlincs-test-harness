@@ -494,7 +494,7 @@ class VideoLINCSLeaderboard(Leaderboard):
                     on_html = False
 
                 auto_delete_submission = False
-
+                slurm_nice = 10
                 # TODO: Need to add logic on if the task is take home
                 if split_name == 'sts':
                     slurm_queue_name = Leaderboard.STS_SLURM_QUEUE_NAME
