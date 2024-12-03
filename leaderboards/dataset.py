@@ -97,6 +97,9 @@ class VideoLINCSDataset(Dataset):
                  timeout_time_per_model_sec: int=600,
                  auto_delete_submission: bool=False,
                  auto_execute_split_names=None):
+        self.leaderboard_name = leaderboard_name
+        self.split_name = split_name
+        self.dataset_name = self.get_dataset_name()
         self.dataset_dirpath: str = os.path.join(test_harness_config.datasets_dirpath, leaderboard_name, self.dataset_name)
 
         self.seqmap_filepath = os.path.join(self.dataset_dirpath, VideoLINCSDataset.SEQMAP_NAME)
