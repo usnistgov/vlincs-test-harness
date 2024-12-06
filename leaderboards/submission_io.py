@@ -178,6 +178,7 @@ class FileIO(SubmissionIO):
 
         if not os.path.exists(query_dirpath):
             os.makedirs(query_dirpath, exist_ok=True)
+            logging.info('Creating query directory: {}'.format(query_dirpath))
 
         file_list = os.listdir(query_dirpath)
 
