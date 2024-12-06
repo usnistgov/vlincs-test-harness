@@ -3,7 +3,7 @@ from leaderboards.leaderboard import *
 from leaderboards.mail_io import VLINCSMail
 from leaderboards import json_io
 from leaderboards import hash_utils
-from leaderboards.submission_io_utils import init_submission_io
+from leaderboards.submission_io import init_submission_io
 from leaderboards.tasks import Task
 import time
 import logging

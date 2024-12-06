@@ -7,7 +7,7 @@
 import pickle
 
 from google_auth_oauthlib.flow import InstalledAppFlow
-from leaderboards.drive_io import DriveIO
+from leaderboards.submission_io import DriveIO
 
 
 def create_auth_token(credentials_filepath, token_pickle_filepath):

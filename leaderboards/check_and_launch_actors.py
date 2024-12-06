@@ -9,8 +9,7 @@ import logging.handlers
 
 import fcntl
 from leaderboards.test_harness_config import TestHarnessConfig
-from leaderboards.submission_io import SubmissionIO
-from submission_io_utils import init_submission_io
+from submission_io import init_submission_io, SubmissionIO
 from leaderboards.actor import Actor, ActorManager
 from leaderboards.submission import Submission, SubmissionManager
 from leaderboards import time_utils

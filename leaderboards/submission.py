@@ -7,12 +7,11 @@ import fcntl
 
 
 import traceback
-from leaderboards.submission_io import SubmissionIO
 from leaderboards.submission_file import SubmissionFile
 from leaderboards.actor import Actor, ActorManager
 from leaderboards import slurm
 from leaderboards.leaderboard import *
-from leaderboards.submission_io_utils import init_submission_io
+from leaderboards.submission_io import init_submission_io, SubmissionIO
 from leaderboards.test_harness_config import TestHarnessConfig
 from leaderboards import hash_utils
 from leaderboards.results_manager import ResultsManager
@@ -886,11 +885,10 @@ def merge_submissions(args):
 
 
 def recompute_metrics(args):
-    from leaderboards.drive_io import DriveIO
     test_harness_config = TestHarnessConfig.load_json(args.test_harness_config_filepath)
     results_manager = ResultsManager()
 
-    submission_io = init_submission_io(submission_io_str, test_harness_config)
+    submission_io = init_submission_io(args.submission_io, test_harness_config)
 
     leaderboard_names = []
 
