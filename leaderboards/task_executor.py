@@ -1,9 +1,9 @@
 from leaderboards.actor import ActorManager, Actor
 from leaderboards.leaderboard import *
 from leaderboards.mail_io import VLINCSMail
-from leaderboards.drive_io import DriveIO
 from leaderboards import json_io
 from leaderboards import hash_utils
+from leaderboards.submission_io_utils import init_submission_io
 from leaderboards.tasks import Task
 import time
 import logging
@@ -57,13 +57,8 @@ def main(test_harness_config: TestHarnessConfig, leaderboard: Leaderboard, data_
         submission_dir = os.path.dirname(submission_filepath)
         submission_name = os.path.basename(submission_filepath)
 
-        submission_io = None
 
-        if args.submission_io == 'g_drive':
-            submission_io = DriveIO(test_harness_config.token_pickle_filepath)
-        else:
-            logging.error('Invalid submission system specified: {}'.format(args.submission_io))
-            raise RuntimeError('Invalid submission system specified: {}'.format(args.submission_io))
+        submission_io = init_submission_io(args.submission_io, test_harness_config)
 
         submission_file = submission_io.submission_download(team_email, submission_dir, submission_metadata_filepath, leaderboard.name, data_split_name)
 

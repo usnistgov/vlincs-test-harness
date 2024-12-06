@@ -9,8 +9,8 @@ import logging.handlers
 
 import fcntl
 from leaderboards.test_harness_config import TestHarnessConfig
-from leaderboards.drive_io import DriveIO
 from leaderboards.submission_io import SubmissionIO
+from submission_io_utils import init_submission_io
 from leaderboards.actor import Actor, ActorManager
 from leaderboards.submission import Submission, SubmissionManager
 from leaderboards import time_utils
@@ -223,14 +223,7 @@ def main(test_harness_config: TestHarnessConfig, submission_io_str: str) -> None
 
     logging.info('Actor Manger has {} actors.'.format(len(actor_manager.get_keys())))
 
-    submission_io = None
-
-    if submission_io_str == 'g_drive':
-        submission_io = DriveIO(test_harness_config.token_pickle_filepath)
-    else:
-        logging.error('Invalid submission system specified: {}'.format(submission_io_str))
-        raise RuntimeError('Invalid submission system specified: {}'.format(submission_io_str))
-
+    submission_io = init_submission_io(submission_io_str, test_harness_config)
 
     # TODO: Sort out how to handle multi-threaded upload
     # upload_worker_threads = 1

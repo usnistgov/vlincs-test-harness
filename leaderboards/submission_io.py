@@ -4,7 +4,7 @@ from submission_file import SubmissionFile
 import typing
 
 class SubmissionIO(object):
-    VALID_NAMES = ['g_drive']
+    VALID_NAMES = ['g_drive', 'filesystem']
     def __init__(self):
         pass
 

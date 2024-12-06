@@ -12,6 +12,7 @@ from leaderboards.submission_file import SubmissionFile
 from leaderboards.actor import Actor, ActorManager
 from leaderboards import slurm
 from leaderboards.leaderboard import *
+from leaderboards.submission_io_utils import init_submission_io
 from leaderboards.test_harness_config import TestHarnessConfig
 from leaderboards import hash_utils
 from leaderboards.results_manager import ResultsManager
@@ -889,14 +890,7 @@ def recompute_metrics(args):
     test_harness_config = TestHarnessConfig.load_json(args.test_harness_config_filepath)
     results_manager = ResultsManager()
 
-
-    submission_io = None
-
-    if args.submission_io == 'g_drive':
-        submission_io = DriveIO(test_harness_config.token_pickle_filepath)
-    else:
-        logging.error('Invalid submission system specified: {}'.format(args.submission_io))
-        raise RuntimeError('Invalid submission system specified: {}'.format(args.submission_io))
+    submission_io = init_submission_io(submission_io_str, test_harness_config)
 
     leaderboard_names = []
 
