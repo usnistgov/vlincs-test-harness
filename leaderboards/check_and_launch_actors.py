@@ -437,6 +437,7 @@ if __name__ == "__main__":
             main(test_harness_config, args.submission_io)
         except OSError as e:
             print('check-and-launch was already running when called. {}'.format(e))
+            traceback.print_exc()
         finally:
             fcntl.lockf(f, fcntl.LOCK_UN)
 
