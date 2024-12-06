@@ -9,7 +9,7 @@ from typing import KeysView, ValuesView
 import json_io
 import slurm
 import time_utils
-from leaderboard import Leaderboard
+from leaderboard import *
 from test_harness_config import TestHarnessConfig
 from airium import Airium
 import uuid
