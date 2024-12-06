@@ -191,9 +191,9 @@ class Leaderboard(object):
         dataset = self.dataset_manager.get(data_split_name)
         return dataset.timeout_time_sec
 
-    def get_num_videos(self, data_split_name):
+    def get_dataset_size(self, data_split_name):
         dataset = self.dataset_manager.get(data_split_name)
-        return dataset.get_num_videos()
+        return len(dataset)
 
     def check_instance_data(self, test_harness_config: TestHarnessConfig):
         has_updated = False
@@ -292,7 +292,7 @@ class Leaderboard(object):
                             # TODO: Might need to update submission filename format
                             required_format = 'Required filename format: "{}_{}_&lt;Submission Name&gt;.simg"'.format(self.name, data_split)
                             accepting_submissions_info = 'Accepting submissions: {}'.format(dataset.can_submit and not is_archived and is_accepting_submissions)
-                            model_info = 'Number of videos in {}, {}: {}'.format(self.name, data_split, self.get_num_videos(data_split))
+                            model_info = 'Dataset size in {}, {}: {}'.format(self.name, data_split, self.get_dataset_size(data_split))
                             time_info = 'Execution timeout (hh:mm:ss): {}'.format(str(datetime.timedelta(seconds=self.get_timeout_time_sec(data_split))))
 
                             if is_archived:
