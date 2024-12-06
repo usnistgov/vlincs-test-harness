@@ -75,7 +75,7 @@ def write_html_leaderboard_pages(test_harness_config: TestHarnessConfig, results
             with a.p(klass='card-text text-left'):
                 a('Placeholder text for {}'.format(leaderboard.name))
             with a.div(klass='container'):
-                a.img(src='public/images/logo.png', klass='img-fluid', alt='Placeholder image')
+                a.img(src='public/images/vlincsLogo.png', klass='img-fluid', alt='Placeholder image')
             with a.p():
                 a('Placeholder image description')
 
