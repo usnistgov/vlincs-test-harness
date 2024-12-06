@@ -7,10 +7,6 @@
 import typing
 import pandas as pd
 
-
-
-
-
 class Metric(object):
     def __init__(self, write_html: bool, share_with_actor: bool, store_result: bool,
                  share_with_external: bool):

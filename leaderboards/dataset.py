@@ -3,7 +3,7 @@ import csv
 import logging
 import typing
 
-from leaderboards.test_harness_config import TestHarnessConfig
+from test_harness_config import TestHarnessConfig
 import os
 import copy
 import pandas as pd

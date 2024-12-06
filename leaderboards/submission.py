@@ -7,14 +7,14 @@ import fcntl
 
 
 import traceback
-from leaderboards.submission_file import SubmissionFile
-from leaderboards.actor import Actor, ActorManager
-from leaderboards import slurm
-from leaderboards.leaderboard import *
-from leaderboards.submission_io import init_submission_io, SubmissionIO
-from leaderboards.test_harness_config import TestHarnessConfig
-from leaderboards import hash_utils
-from leaderboards.results_manager import ResultsManager
+from submission_file import SubmissionFile
+from actor import Actor, ActorManager
+import slurm
+from leaderboard import *
+from submission_io import init_submission_io, SubmissionIO
+from test_harness_config import TestHarnessConfig
+import hash_utils
+from results_manager import ResultsManager
 
 class Submission(object):
     def __init__(self, g_file: SubmissionFile, actor: Actor, leaderboard: Leaderboard, data_split_name: str, provenance: str= 'performer', submission_epoch: int=None, slurm_queue_name: str=None, submission_leaderboard: Leaderboard = None):

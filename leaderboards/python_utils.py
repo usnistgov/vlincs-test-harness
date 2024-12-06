@@ -1,6 +1,5 @@
 from typing import Dict
 
-
 def update_object_values(object_inst: object, config_dict: Dict) -> bool:
     config_keys = object_inst.__dict__.keys()
     is_updated = False

@@ -18,15 +18,15 @@ import numpy as np
 from airium import Airium
 from typing import Union, Tuple, Dict, Any
 
-from leaderboards.submission_io import SubmissionIO
-from leaderboards.python_utils import update_object_values, get_value
-from leaderboards.test_harness_config import TestHarnessConfig
-from leaderboards import json_io
-from leaderboards.dataset import DatasetManager, Dataset, VideoLINCSDataset
-from leaderboards.metrics import *
-from leaderboards.tasks import *
-from leaderboards.summary_metrics import *
-from leaderboards.results_manager import ResultsManager
+from submission_io import SubmissionIO
+from python_utils import update_object_values, get_value
+from test_harness_config import TestHarnessConfig
+import json_io
+from dataset import DatasetManager, Dataset, VideoLINCSDataset
+from metrics import *
+from tasks import *
+from summary_metrics import *
+from results_manager import ResultsManager
 
 
 class Leaderboard(object):

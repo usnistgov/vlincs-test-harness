@@ -6,12 +6,11 @@
 import math
 import os
 from typing import KeysView, ValuesView
-
-from leaderboards import json_io
-from leaderboards import slurm
-from leaderboards import time_utils
-from leaderboards.leaderboard import Leaderboard
-from leaderboards.test_harness_config import TestHarnessConfig
+import json_io
+import slurm
+import time_utils
+from leaderboard import Leaderboard
+from test_harness_config import TestHarnessConfig
 from airium import Airium
 import uuid
 

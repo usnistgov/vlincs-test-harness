@@ -7,8 +7,8 @@
 import os
 import smtplib
 
-from leaderboards import json_io
-from leaderboards import time_utils
+import json_io
+import time_utils
 
 
 class VLINCSMail(object):

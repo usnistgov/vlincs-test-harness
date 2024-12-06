@@ -1,7 +1,7 @@
 import json
 import os
 
-from leaderboards import json_io
+import json_io
 from python_utils import update_object_values
 from typing import Dict
 

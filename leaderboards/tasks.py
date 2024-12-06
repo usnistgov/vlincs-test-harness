@@ -5,10 +5,10 @@ import shutil
 import subprocess
 import typing
 from typing import List
-from leaderboards.mail_io import VLINCSMail
-from leaderboards.dataset import Dataset
-from leaderboards.test_harness_config import TestHarnessConfig
-from leaderboards.metrics import Metric, VLINCSMetric
+from mail_io import VLINCSMail
+from dataset import Dataset
+from test_harness_config import TestHarnessConfig
+from metrics import Metric, VLINCSMetric
 
 
 def check_gpu(host):

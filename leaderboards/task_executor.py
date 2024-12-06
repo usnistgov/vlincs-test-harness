@@ -1,10 +1,10 @@
-from leaderboards.actor import ActorManager, Actor
-from leaderboards.leaderboard import *
-from leaderboards.mail_io import VLINCSMail
-from leaderboards import json_io
-from leaderboards import hash_utils
-from leaderboards.submission_io import init_submission_io
-from leaderboards.tasks import Task
+from actor import ActorManager, Actor
+from leaderboard import *
+from mail_io import VLINCSMail
+import json_io
+import hash_utils
+from submission_io import init_submission_io
+from tasks import Task
 import time
 import logging
 import traceback

@@ -12,7 +12,7 @@ import jsonpickle
 import logging
 import traceback
 
-from leaderboards.mail_io import VLINCSMail
+from mail_io import VLINCSMail
 
 
 def write(filepath, obj, with_lock=True):

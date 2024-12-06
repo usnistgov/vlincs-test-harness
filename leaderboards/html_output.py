@@ -12,15 +12,15 @@ from git import Repo
 from git.exc import GitCommandError
 from airium import Airium
 
-from leaderboards.actor import  ActorManager
-from leaderboards.submission import SubmissionManager
-from leaderboards import time_utils
-from leaderboards import slurm
-from leaderboards.mail_io import VLINCSMail
-from leaderboards.test_harness_config import TestHarnessConfig
-from leaderboards.leaderboard import Leaderboard
-from leaderboards.submission_io import SubmissionIO
-from leaderboards.results_manager import ResultsManager
+from actor import  ActorManager
+from submission import SubmissionManager
+import time_utils
+import slurm
+from mail_io import VLINCSMail
+from test_harness_config import TestHarnessConfig
+from leaderboard import Leaderboard
+from submission_io import SubmissionIO
+from results_manager import ResultsManager
 
 def get_leaderboard_javascript_content(leaderboard: Leaderboard):
     content = ''

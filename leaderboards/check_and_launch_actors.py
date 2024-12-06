@@ -8,14 +8,14 @@ import traceback
 import logging.handlers
 
 import fcntl
-from leaderboards.test_harness_config import TestHarnessConfig
+from test_harness_config import TestHarnessConfig
 from submission_io import init_submission_io, SubmissionIO
-from leaderboards.actor import Actor, ActorManager
-from leaderboards.submission import Submission, SubmissionManager
-from leaderboards import time_utils
-from leaderboards.leaderboard import *
-from leaderboards.html_output import update_html_pages
-from leaderboards.results_manager import ResultsManager
+from actor import Actor, ActorManager
+from submission import Submission, SubmissionManager
+import time_utils
+from leaderboard import *
+from html_output import update_html_pages
+from results_manager import ResultsManager
 import warnings
 
 def process_new_submission(test_harness_config: TestHarnessConfig, submission_io: SubmissionIO, actor: Actor, active_leaderboards: Dict[str, Leaderboard], active_submission_managers: Dict[str, SubmissionManager]) -> None:
