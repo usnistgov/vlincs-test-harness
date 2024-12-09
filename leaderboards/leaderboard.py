@@ -664,18 +664,35 @@ class VideoLINCSLeaderboard(Leaderboard):
         return pd.read_csv(result_filepath, header=None, names=VideoLINCSDataset.GROUND_TRUTH_COLUMNS)
 
     def get_training_dataset_name(self):
-        raise NotImplementedError()
+        return None
 
     def update_results_csv(self, result_df: pd.DataFrame, results_manager: ResultsManager, submission_epoch: int, data_split: str, actor_name: str, actor_uuid: str):
-        raise NotImplementedError()
+        new_data = dict()
+
+        submission_epoch_str = time_utils.convert_epoch_to_iso(submission_epoch)
+        df = self.load_results_df(results_manager)
+        filtered_df = results_manager.filter_primary_key(df, submission_epoch_str, data_split, actor_uuid)
+
+        result_df_already_exists = result_df is not None and not result_df[
+            (result_df['team_name'] == actor_name) & (result_df['submission_timestamp'] == submission_epoch_str) & (
+                    result_df['data_split'] == data_split)].empty
+
+        if result_df_already_exists:
+            return new_data
+
+        if filtered_df is None or len(filtered_df) != 1:
+            logging.warning('Failed to find {}, {}, {}, when generating round results CSV'.format(
+                submission_epoch_str, data_split, actor_uuid))
+            return new_data
+
+        # TODO: Pull out data from filtered_df to pass to CSV
+
+        return new_data
 
     def get_valid_metric(self, metric_name):
-        raise NotImplementedError()
+        return VideoLINCSLeaderboard.VALID_METRIC_NAMES[metric_name]
 
     def get_valid_summary_metric(self, metric_name):
-        raise NotImplementedError()
-
-    def get_training_dataset_name(self):
         raise NotImplementedError()
 
 
