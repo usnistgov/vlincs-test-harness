@@ -502,6 +502,7 @@ class Submission(object):
 
                     if not isinstance(metric_dict, dict):
                         logging.warning('Submission results for metric {} were not a dictionary, instead they were {}'.format(metric_name, metric_dict))
+                        continue
 
                     for metric_key, metric_value in metric_dict.items():
                         if metric_value is None or math.isnan(float(metric_value)):
