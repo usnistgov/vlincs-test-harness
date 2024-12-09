@@ -315,7 +315,10 @@ def main(test_harness_config: TestHarnessConfig, submission_io_str: str) -> None
                 leaderboard_folder_id = submission_io.create_folder('{}_{}'.format(leaderboard_name, data_split_name), test_harness_summary_folder_id)
 
                 # Subset metadata and results dfs
-                subset_metadata_df = metadata_df[metadata_df['data_split'] == data_split_name]
+                if metadata_df is not None:
+                    subset_metadata_df = metadata_df[metadata_df['data_split'] == data_split_name]
+                else:
+                    subset_metadata_df = None
                 if results_df is not None:
                     subset_results_df = results_df[results_df['data_split'] == data_split_name]
                 else:

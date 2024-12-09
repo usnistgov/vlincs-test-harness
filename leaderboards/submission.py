@@ -500,7 +500,7 @@ class Submission(object):
                 if metric.write_html:
                     metric_dict = filtered_df[metric_name].values[0]
 
-                    if not isinstance(metric_dict, dict):
+                    if not isinstance(metric_dict, dict) or np.isnan(metric_dict):
                         logging.warning('Submission results for metric {} were not a dictionary, instead they were {}'.format(metric_name, metric_dict))
                         continue
 
@@ -723,6 +723,11 @@ class SubmissionManager(object):
 
                                 if filtered_df[evaluation_metric_name] is not None:
                                     results_dict = filtered_df[evaluation_metric_name].values[0]
+
+                                    if not isinstance(results_dict, dict) or np.isnan(results_dict):
+                                        logging.warning('Submission results for metric {} were not a dictionary, instead they were {}'.format(metric_name, results_dict))
+                                        continue
+
                                     if evaluation_metric_sub_name is None or evaluation_metric_name not in results_dict:
                                         evaluation_metric_sub_name = results_dict.keys()[0]
 

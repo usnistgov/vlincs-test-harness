@@ -128,6 +128,11 @@ class Leaderboard(object):
         if not os.path.exists(self.summary_metadata_csv_filepath):
             logging.warning('Unable to find summary metadata_csv at location: {}, generating CSV now.'.format(self.summary_metadata_csv_filepath))
             self.generate_metadata_csv()
+
+        # If it still doesn't exist, then there might be no data to load
+        if not os.path.exists(self.summary_metadata_csv_filepath):
+            return None
+
         return pd.read_csv(self.summary_metadata_csv_filepath)
 
     def load_results_df(self, results_manager: ResultsManager):
