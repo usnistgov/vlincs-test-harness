@@ -462,7 +462,7 @@ class Submission(object):
             logging.error("The slurm script: {} resulted in errors {}".format(slurm_script_filepath, stderr.decode()))
             logging.info(stdout.decode())
             self.active_slurm_job_name = None
-            self.web_display_execution_errors += ":Slurm Script Error:"
+            self.web_display_execution_errors = ":Slurm Script Error:"
 
     def get_result_table_row(self, results_manager: ResultsManager, a: Airium, actor: Actor, leaderboard: Leaderboard, submission_io: SubmissionIO):
         if self.active_slurm_job_name is not None:
