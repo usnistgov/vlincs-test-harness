@@ -452,7 +452,7 @@ class Leaderboard(object):
         raise NotImplementedError()
 
 class VideoLINCSLeaderboard(Leaderboard):
-
+    GENERAL_SLURM_QUEUE_NAME = 'take-home'
     DEFAULT_METRICS = [TestMetric]
     DEFAULT_EVALUATION_METRIC_NAME = 'TestMetric'
 
@@ -500,7 +500,10 @@ class VideoLINCSLeaderboard(Leaderboard):
                     slurm_queue_name = Leaderboard.STS_SLURM_QUEUE_NAME
                     slurm_nice = 0
                 else:
-                    slurm_queue_name = Leaderboard.GENERAL_SLURM_QUEUE_NAME
+                    if task_name == 'take_home':
+                        slurm_queue_name = 'take-home'
+                    else:
+                        slurm_queue_name = Leaderboard.GENERAL_SLURM_QUEUE_NAME
 
                 self.add_dataset(test_harness_config, split_name, can_submit, slurm_queue_name, slurm_nice, on_html=on_html)
 
