@@ -367,10 +367,7 @@ class Submission(object):
     def get_submission_epoch_str_primary(self):
         return time_utils.convert_epoch_to_iso(self.submission_epoch)
 
-    def execute(self, actor: Actor, test_harness_config: TestHarnessConfig, execution_epoch: int, submission_io: SubmissionIO, custom_home_dirpath: str=None, custom_scratch_dirpath: str=None, custom_slurm_options=None, custom_python_env_filepath: str = None) -> None:
-        if custom_slurm_options is None:
-            custom_slurm_options = []
-
+    def execute(self, actor: Actor, test_harness_config: TestHarnessConfig, execution_epoch: int, submission_io: SubmissionIO) -> None:
         logging.info('Executing submission {} by {}'.format(self.g_file.name, actor.name))
         self.execution_epoch = execution_epoch
         self.execution_results_dirpath = os.path.join(self.actor_results_dirpath, self.get_execute_time_str())
@@ -389,8 +386,6 @@ class Submission(object):
         task_executor_script_filepath = test_harness_config.task_evaluator_script_filepath
 
         python_executable = test_harness_config.python_env
-        if custom_python_env_filepath is not None:
-            python_executable = custom_python_env_filepath
 
         test_harness_dirpath = test_harness_config.root_test_harness_dirpath
         control_slurm_queue = test_harness_config.control_slurm_queue_name
@@ -409,20 +404,35 @@ class Submission(object):
         # cmd_str_list = ['sbatch', '--partition', control_slurm_queue, '--parsable', '--nice={}'.format(self.slurm_nice), '--nodes', '1', '--ntasks-per-node', '1', '--cpus-per-task', '1', ':', '--partition', self.slurm_queue_name, '--nice={}'.format(self.slurm_nice), '--nodes', '1', '--ntasks-per-node', '1', '--cpus-per-task', str(cpus_per_task), '--exclusive', '-J', self.active_slurm_job_name, '--parsable', '-o', slurm_output_filepath, slurm_script_filepath, actor.name, actor.email, submission_filepath, self.execution_results_dirpath, test_harness_config_filepath, self.leaderboard_name, self.data_split_name, test_harness_dirpath, python_executable, task_executor_script_filepath]
         cmd_str_list = []
 
-        sbatch_control_params = ['sbatch',
-        '--partition', control_slurm_queue,
-        '--parsable',
-        '--nice={}'.format(self.slurm_nice),
-        '--nodes', '1',
-        '--ntasks-per-node', '1',
-        '--cpus-per-task', '1', ':']
-        sbatch_vm_params = ['--partition', self.slurm_queue_name,
-        '--nice={}'.format(self.slurm_nice),
-        '--nodes', '1',
-        '--ntasks-per-node', '1',
-        '--cpus-per-task', str(cpus_per_task),
-        '--exclusive', '-J', self.active_slurm_job_name,
-        '--parsable', '-o', slurm_output_filepath]
+        if self.slurm_queue_name == 'take-home':
+            sbatch_params = ['--partition', self.slurm_queue_name,
+                             '--parsable',
+                             '--nice={}'.format(self.slurm_nice),
+                             '--nodes', '1',
+                             '--ntasks-per-node', '1',
+                             '--cpus-per-task', str(cpus_per_task),
+                             '-J', self.active_slurm_job_name,
+                             '--parsable', '-o', slurm_output_filepath]
+
+            cmd_str_list.extend(sbatch_params)
+        else:
+            sbatch_control_params = ['sbatch',
+            '--partition', control_slurm_queue,
+            '--parsable',
+            '--nice={}'.format(self.slurm_nice),
+            '--nodes', '1',
+            '--ntasks-per-node', '1',
+            '--cpus-per-task', '1', ':']
+            sbatch_vm_params = ['--partition', self.slurm_queue_name,
+            '--nice={}'.format(self.slurm_nice),
+            '--nodes', '1',
+            '--ntasks-per-node', '1',
+            '--cpus-per-task', str(cpus_per_task),
+            '--exclusive', '-J', self.active_slurm_job_name,
+            '--parsable', '-o', slurm_output_filepath]
+
+            cmd_str_list.extend(sbatch_control_params)
+            cmd_str_list.extend(sbatch_vm_params)
 
         container_launch_params = [slurm_script_filepath,
                                    "--team-name", "{}".format(actor.name),
@@ -437,11 +447,8 @@ class Submission(object):
                                    "--task-executor-filepath", task_executor_script_filepath,
                                    "--submission-io", submission_io.get_name()]
 
-        if len(custom_slurm_options) > 0:
-            sbatch_vm_params.extend(custom_slurm_options)
 
-        cmd_str_list.extend(sbatch_control_params)
-        cmd_str_list.extend(sbatch_vm_params)
+
         cmd_str_list.extend(container_launch_params)
 
         logging.info('launching sbatch command: \n{}'.format(' '.join(cmd_str_list)))
