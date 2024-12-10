@@ -480,7 +480,7 @@ class VideoLINCSLeaderboard(Leaderboard):
             raise RuntimeError('Invalid task name: {}'.format(self.task_name))
 
         self.task = VideoLINCSLeaderboard.VALID_TASK_NAMES[self.task_name](test_harness_config, self.name)
-        self.evaluate_metric_name = TestMetric().get_name()
+        self.evaluation_metric_name = TestMetric().get_name()
 
         self.excluded_files.extend(VideoLINCSLeaderboard.DEFAULT_EXCLUDED_FILES)
         self.required_files.extend(VideoLINCSLeaderboard.DEFAULT_REQUIRED_FILES)
