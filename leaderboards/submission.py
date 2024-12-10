@@ -736,7 +736,7 @@ class SubmissionManager(object):
                                         continue
 
                                     if evaluation_metric_sub_name is None or evaluation_metric_name not in results_dict:
-                                        evaluation_metric_sub_name = results_dict.keys()[0]
+                                        evaluation_metric_sub_name = next(iter(results_dict))
 
                                     result_value = results_dict[evaluation_metric_sub_name]
 
