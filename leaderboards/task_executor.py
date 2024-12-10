@@ -196,7 +196,7 @@ if __name__ == '__main__':
                         help='The name of the vm.',
                         required=True)
     parser.add_argument('--job-id', type=str, help='The slurm job ID', default=None)
-    parser.add_argument('--submission-io', type=str, choices=['g_drive'], default='g_drive', required=False)
+    parser.add_argument('--submission-io', type=str, choices=SubmissionIO.VALID_NAMES, default='g_drive', required=False)
 
     args = parser.parse_args()
 

@@ -405,7 +405,7 @@ class Submission(object):
         cmd_str_list = []
 
         if self.slurm_queue_name == 'take-home':
-            sbatch_params = ['--partition', self.slurm_queue_name,
+            sbatch_params = ['sbatch', '--partition', self.slurm_queue_name,
                              '--parsable',
                              '--nice={}'.format(self.slurm_nice),
                              '--nodes', '1',
