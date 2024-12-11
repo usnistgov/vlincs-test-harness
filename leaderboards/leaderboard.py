@@ -336,7 +336,7 @@ class Leaderboard(object):
                         evaluation_metric_name = self.evaluation_metric_name
                         evaluation_metric_sub_name = None
                         if '::' in evaluation_metric_name:
-                            eval_metric_split = evaluation_metric_name.split(':')
+                            eval_metric_split = evaluation_metric_name.split('::')
                             evaluation_metric_name = eval_metric_split[0]
                             evaluation_metric_sub_name = eval_metric_split[1]
 
