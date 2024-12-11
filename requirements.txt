@@ -17,3 +17,4 @@ pandas
 matplotlib
 msgpack
 pyarrow
+trackeval @ git+https://github.com/tblattner/TrackEval.git@master

@@ -34,7 +34,7 @@ class Leaderboard(object):
 
     ALL_TASK_NAMES = {'take_home': TakeHomeTask}
 
-    ALL_METRIC_NAMES = {'test': TestMetric}
+    ALL_METRIC_NAMES = {'TrackEvalMetric': TrackEvalMetric}
 
     ALL_SUMMARY_METRIC_NAMES = {}
 
@@ -447,8 +447,8 @@ class Leaderboard(object):
 
 class VideoLINCSLeaderboard(Leaderboard):
     GENERAL_SLURM_QUEUE_NAME = 'take-home'
-    DEFAULT_METRICS = [TestMetric]
-    DEFAULT_EVALUATION_METRIC_NAME = 'TestMetric'
+    DEFAULT_METRICS = [TrackEvalMetric]
+    DEFAULT_EVALUATION_METRIC_NAME = 'TrackEvalMetric'
 
     DEFAULT_EXCLUDED_FILES = []
     DEFAULT_REQUIRED_FILES = []
@@ -459,7 +459,7 @@ class VideoLINCSLeaderboard(Leaderboard):
     VALID_TASK_NAMES = {'take_home': TakeHomeTask}
 
     VALID_METRIC_NAMES = {
-        'TestMetric': TestMetric
+        'TrackEvalMetric': TrackEvalMetric
     }
 
     def __init__(self, name: str, task_name: str, test_harness_config: TestHarnessConfig, add_default_data_split: bool):
