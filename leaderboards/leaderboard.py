@@ -564,7 +564,6 @@ class VideoLINCSLeaderboard(Leaderboard):
                 metric_output = None
                 if pre_processed_metrics_dict is not None and metric_name in pre_processed_metrics_dict:
                     metric_output = pre_processed_metrics_dict[metric_name]
-                    logging.info('Loading processed metrics from performer: {}'.format(metric_output))
                 elif isinstance(metric, VLINCSMetric):
                     metric_output = metric.compute(results, gt_dict, metadata_df, actor_name, self.name, data_split_name, execution_results_dirpath)
                 else:
