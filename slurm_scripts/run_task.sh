@@ -53,10 +53,19 @@ echo "Extra args: $EXTRA_ARGS"
 echo $SLURM_JOB_NODELIST_PACK_GROUP_0  # host
 echo $SLURM_JOB_NODELIST_PACK_GROUP_1  # vm
 
+if [ -z "${SLURM_JOB_NODELIST_PACK_GROUP_1-}" ]; then
+  VM_NAME="none"
+else
+  VM_NAME=$SLURM_JOB_NODELIST_PACK_GROUP_1
+fi
+
+echo $VM_NAME
+
 if [ -z "${SLURM_JOB_ID-}" ]; then
   SLURM_JOB_ID=1
 fi
 
 echo "Normal execution"
-PYTHONPATH="$TEST_HARNESS_DIRPATH" "$PYTHON_EXEC" -u "$TASK_EXECUTOR_FILEPATH" --team-name "$TEAM_NAME" --team-email "$TEAM_EMAIL" --container-filepath "$SUBMISSION_FILEPATH" --result-dirpath "$RESULT_DIRPATH" --test-harness-config-filepath "$CONFIG_FILEPATH" --leaderboard-name "$LEADERBOARD_NAME" --data-split-name "$DATA_SPLIT_NAME" --vm-name "$SLURM_JOB_NODELIST_PACK_GROUP_1" --job-id "$SLURM_JOB_ID" --submission-io "$SUBMISSION_IO"
+echo "$PYTHON_EXEC" -u "$TASK_EXECUTOR_FILEPATH" --team-name "$TEAM_NAME" --team-email "$TEAM_EMAIL" --container-filepath "$SUBMISSION_FILEPATH" --result-dirpath "$RESULT_DIRPATH" --test-harness-config-filepath "$CONFIG_FILEPATH" --leaderboard-name "$LEADERBOARD_NAME" --data-split-name "$DATA_SPLIT_NAME" --vm-name "$VM_NAME" --job-id "$SLURM_JOB_ID" --submission-io "$SUBMISSION_IO"
+PYTHONPATH="$TEST_HARNESS_DIRPATH" "$PYTHON_EXEC" -u "$TASK_EXECUTOR_FILEPATH" --team-name "$TEAM_NAME" --team-email "$TEAM_EMAIL" --container-filepath "$SUBMISSION_FILEPATH" --result-dirpath "$RESULT_DIRPATH" --test-harness-config-filepath "$CONFIG_FILEPATH" --leaderboard-name "$LEADERBOARD_NAME" --data-split-name "$DATA_SPLIT_NAME" --vm-name "$VM_NAME" --job-id "$SLURM_JOB_ID" --submission-io "$SUBMISSION_IO"
 

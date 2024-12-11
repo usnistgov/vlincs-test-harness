@@ -186,7 +186,9 @@ class TakeHomeTask(Task):
         return errors
 
     def process_metrics(self, results_dirpath: str, dataset: Dataset, metrics: typing.Dict[str, Metric], actor_name: str, leaderboard_name: str):
+        errors = ''
         results = dataset.load_results(results_dirpath)
+        errors += dataset.get_result_errors(results_dirpath)
         ground_truth = dataset.load_ground_truth()
         metadata_df = None
 
@@ -200,3 +202,5 @@ class TakeHomeTask(Task):
         metric_result_filepath = os.path.join(results_dirpath, Task.METRIC_RESULT_FILENAME)
         with open(metric_result_filepath, 'w') as fp:
             json.dump(all_results, fp, indent=4)
+
+        return errors

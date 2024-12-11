@@ -80,6 +80,9 @@ class Dataset(object):
     def load_results(self, results_dirpath) -> typing.Dict[str, pd.DataFrame | None]:
         raise NotImplementedError()
 
+    def get_result_errors(self, results_dirpath):
+        raise NotImplementedError()
+
 
 class VideoLINCSDataset(Dataset):
     SEQMAP_NAME = 'seqmap.txt'
@@ -158,6 +161,22 @@ class VideoLINCSDataset(Dataset):
                 passed_check = False
 
         return passed_check
+
+    def get_result_errors(self, results_dirpath):
+        errors = ''
+        num_missing_results = 0
+        for vide_name in self.video_names:
+            result_filepath = os.path.join(results_dirpath, '{}.txt'.format(vide_name))
+            if not os.path.exists(result_filepath):
+                num_missing_results += 1
+
+        if num_missing_results > 0:
+            if num_missing_results == len(self):
+                errors = ':No Results:'
+            else:
+                errors = ':Missing Results:'
+
+        return errors
 
     def load_results(self, results_dirpath) -> typing.Dict[str, pd.DataFrame | None]:
         results = {}

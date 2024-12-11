@@ -35,15 +35,19 @@ def main(test_harness_config: TestHarnessConfig, leaderboard: Leaderboard, data_
     submission_metadata_filepath = os.path.join(submission_dirpath, team_name + '.metadata.json')
     # error_filepath = os.path.join(results_dirpath, 'errors.txt')
     info_file = os.path.join(results_dirpath, 'info.json')
-    try:
-        vm_ip = test_harness_config.vms[vm_name]
-    except:
-        msg = 'VM "{}" ended up in the wrong SLURM queue.\n{}'.format(vm_name, traceback.format_exc())
-        errors += ":VM:"
-        logging.error(msg)
-        logging.error('config: "{}"'.format(test_harness_config))
-        VLINCSMail().send(to='vlincs@nist.gov', subject='VM "{}" In Wrong SLURM Queue'.format(vm_name), message=msg)
-        raise
+
+    if vm_name == 'none':
+        vm_ip = None
+    else:
+        try:
+            vm_ip = test_harness_config.vms[vm_name]
+        except:
+            msg = 'VM "{}" ended up in the wrong SLURM queue.\n{}'.format(vm_name, traceback.format_exc())
+            errors += ":VM:"
+            logging.error(msg)
+            logging.error('config: "{}"'.format(test_harness_config))
+            VLINCSMail().send(to='vlincs@nist.gov', subject='VM "{}" In Wrong SLURM Queue'.format(vm_name), message=msg)
+            raise
 
     task : Task = leaderboard.task
     dataset = leaderboard.get_dataset(data_split_name)
@@ -70,17 +74,18 @@ def main(test_harness_config: TestHarnessConfig, leaderboard: Leaderboard, data_
         # Scan download
         if test_harness_config.scanner_script_filepath is not None:
             logging.info('Scanning submission {}'.format(submission_filepath))
-            try:
-                subprocess.run([test_harness_config.scanner_script_filepath, submission_filepath], check=True)
-            except subprocess.CalledProcessError as e:
-                logging.error('Scan FAILED')
-                logging.error(str(e))
-                VLINCSMail().send(to='vlincs@nist.gov', subject='Scan failed for submission',
-                                  message='Scan failed for {}\n\n{}'.format(submission_filepath, str(e)))
-                os.remove(submission_filepath)
-                raise
-            else:
-                logging.info('Scan PASSED')
+            # TODO: Fix to work with zip file
+            # try:
+            #     subprocess.run([test_harness_config.scanner_script_filepath, submission_filepath], check=True)
+            # except subprocess.CalledProcessError as e:
+            #     logging.error('Scan FAILED')
+            #     logging.error(str(e))
+            #     VLINCSMail().send(to='vlincs@nist.gov', subject='Scan failed for submission',
+            #                       message='Scan failed for {}\n\n{}'.format(submission_filepath, str(e)))
+            #     os.remove(submission_filepath)
+            #     raise
+            # else:
+            #     logging.info('Scan PASSED')
 
     # Step 2) Compute hash of container (if it does not exist)
     hash_utils.compute_hash(submission_filepath)
@@ -205,7 +210,7 @@ if __name__ == '__main__':
     leaderboard = Leaderboard.load_json(test_harness_config, args.leaderboard_name)
 
     main(test_harness_config, leaderboard, args.data_split_name, args.vm_name, args.team_name, args.team_email,
-         args.container_filepath, args.results_dirpath, args.job_id, args.submission_io)
+         args.container_filepath, args.result_dirpath, args.job_id, args.submission_io)
 
 
 

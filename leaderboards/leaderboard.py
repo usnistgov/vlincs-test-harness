@@ -441,18 +441,6 @@ class Leaderboard(object):
     def get_training_dataset_name(self):
         raise NotImplementedError()
 
-    def load_result(self, result_filepath):
-        if os.path.exists(result_filepath):
-            try:
-                with open(result_filepath) as file:
-                    file_contents = file.readline().strip()
-                    return float(file_contents)
-            except:
-                return np.nan
-
-        # If the file did not exist, then we return nan
-        return np.nan
-
     def process_metrics(self, submission_io: SubmissionIO, results_manager: ResultsManager, data_split_name: str, execution_results_dirpath: str, actor_name: str, actor_uuid: str, submission_epoch_str: str, processed_metrics: list, skip_upload_existing: bool):
         raise NotImplementedError()
 
@@ -560,22 +548,9 @@ class VideoLINCSLeaderboard(Leaderboard):
         if len(metrics_to_compute) > 0:
             # Load ground truth and results
             gt_dict: typing.OrderedDict[str, typing.OrderedDict] = self.get_dataset(data_split_name).load_ground_truth()
+            results = self.get_dataset(data_split_name).load_results(execution_results_dirpath)
 
-            results = {}
-            num_missing_results = 0
-            for video_name in gt_dict.keys():
-                result_filepath = os.path.join(execution_results_dirpath,'{}.txt'.format(video_name))
-                result_df = self.load_result(result_filepath)
-                results[video_name] = result_df
-
-                if result_df is None:
-                    num_missing_results += 1
-
-            if num_missing_results > 0:
-                if num_missing_results == len(gt_dict):
-                    web_display_parse_errors += ":No Results:"
-                else:
-                    web_display_parse_errors += ":Missing Results:"
+            errors += self.get_dataset(data_split_name).get_result_errors(execution_results_dirpath)
 
             # TODO: Update 'update_entry' to contain columns of interest relevant for for results df
             # TODO: Do we need a metadata_df
@@ -662,11 +637,6 @@ class VideoLINCSLeaderboard(Leaderboard):
             self.initialize_html_options(split_name, on_html)
             return True
         return False
-
-    def load_result(self, result_filepath):
-        if not os.path.exists(result_filepath):
-            return None
-        return pd.read_csv(result_filepath, header=None, names=VideoLINCSDataset.GROUND_TRUTH_COLUMNS)
 
     def get_training_dataset_name(self):
         return None

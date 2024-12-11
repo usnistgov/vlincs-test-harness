@@ -194,7 +194,10 @@ class FileIO(SubmissionIO):
 
     def download(self, s_file: SubmissionFile, output_dirpath: str) -> None:
         filepath = os.path.join(s_file.id, s_file.name)
-        shutil.copy(filepath, output_dirpath)
+        result = shutil.copy2(filepath, output_dirpath)
+        logging.info('Downloading file by copying {} to {}, copy result: {}'.format(filepath, output_dirpath, result))
+        if os.path.exists(os.path.join(result)):
+            logging.info('Copying to {} successful'.format(result))
 
     def create_folder(self, folder_name, parent_id='root') -> str:
         parent_dirpath = self.submission_dirpath
