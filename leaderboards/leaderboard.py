@@ -448,7 +448,7 @@ class Leaderboard(object):
 class VideoLINCSLeaderboard(Leaderboard):
     GENERAL_SLURM_QUEUE_NAME = 'take-home'
     DEFAULT_METRICS = [TrackEvalMetric]
-    DEFAULT_EVALUATION_METRIC_NAME = 'TrackEvalMetric'
+    DEFAULT_EVALUATION_METRIC_NAME = 'TrackEvalMetric::IDF1'
 
     DEFAULT_EXCLUDED_FILES = []
     DEFAULT_REQUIRED_FILES = []
@@ -469,7 +469,7 @@ class VideoLINCSLeaderboard(Leaderboard):
             raise RuntimeError('Invalid task name: {}'.format(self.task_name))
 
         self.task = VideoLINCSLeaderboard.VALID_TASK_NAMES[self.task_name](test_harness_config, self.name)
-        self.evaluation_metric_name = TestMetric().get_name()
+        self.evaluation_metric_name = VideoLINCSLeaderboard.DEFAULT_EVALUATION_METRIC_NAME
 
         self.excluded_files.extend(VideoLINCSLeaderboard.DEFAULT_EXCLUDED_FILES)
         self.required_files.extend(VideoLINCSLeaderboard.DEFAULT_REQUIRED_FILES)
