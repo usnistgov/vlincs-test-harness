@@ -11,10 +11,30 @@ import traceback
 import os
 import subprocess
 
+def merge_errors(old_errors, new_errors):
+    if len(new_errors) == 0:
+        return old_errors
+
+    keys1 = set(old_errors.keys())
+    keys2 = set(new_errors.keys())
+    all_keys = keys1.union(keys2)
+
+    errors_ret = {key: '' for key in all_keys}
+
+    for key in all_keys:
+        if key in old_errors:
+            errors_ret[key] += old_errors[key]
+
+        if key in new_errors:
+            errors_ret[key] += new_errors
+
+    return errors_ret
+
 
 def main(test_harness_config: TestHarnessConfig, leaderboard: Leaderboard, data_split_name: str,
          vm_name: str, team_name: str, team_email: str, submission_filepath: str, results_dirpath: str, job_id: str, submission_io_str: str):
 
+    start_time = time.time()
     actor_manager = ActorManager.load_json(test_harness_config)
     actor = actor_manager.get_from_name(team_name)
 
@@ -22,7 +42,7 @@ def main(test_harness_config: TestHarnessConfig, leaderboard: Leaderboard, data_
     logging.info('Executing Container within VM for team: {} within VM: {}'.format(team_name, vm_name))
     logging.info('**************************************************')
 
-    errors = ''
+    errors = {}
     info_dict = {}
     submission_dirpath = os.path.dirname(submission_filepath)
 
@@ -43,7 +63,10 @@ def main(test_harness_config: TestHarnessConfig, leaderboard: Leaderboard, data_
             vm_ip = test_harness_config.vms[vm_name]
         except:
             msg = 'VM "{}" ended up in the wrong SLURM queue.\n{}'.format(vm_name, traceback.format_exc())
-            errors += ":VM:"
+            if 'web_display_parse_errors' in errors:
+                errors['web_display_parse_errors'] += ':VM:'
+            else:
+                errors['web_display_parse_errors'] = ':VM:'
             logging.error(msg)
             logging.error('config: "{}"'.format(test_harness_config))
             VLINCSMail().send(to='vlincs@nist.gov', subject='VM "{}" In Wrong SLURM Queue'.format(vm_name), message=msg)
@@ -91,41 +114,48 @@ def main(test_harness_config: TestHarnessConfig, leaderboard: Leaderboard, data_
     hash_utils.compute_hash(submission_filepath)
 
     # Step 3) Run basic VM task checks: check_gpu
-    errors += task.run_basic_checks(vm_ip, vm_name)
+    new_errors = task.run_basic_checks(vm_ip, vm_name)
+    errors = merge_errors(errors, new_errors)
 
     # Step 4) Check task parameters in container (files and directories, schema checker)
-    submission_errors = task.run_submission_checks(submission_filepath, dataset)
-    errors += submission_errors
+    new_errors = task.run_submission_checks(submission_filepath, dataset)
+    errors = merge_errors(errors, new_errors)
 
     # Step 4a) Copy in environment to VM
-    errors += task.copy_in_env(vm_ip, vm_name, test_harness_config)
+    new_errors = task.copy_in_env(vm_ip, vm_name, test_harness_config)
+    errors = merge_errors(errors, new_errors)
 
     # Step 5) Run basic VM cleanups (scratch)
-    errors += task.cleanup_vm(vm_ip, vm_name)
+    new_errors = task.cleanup_vm(vm_ip, vm_name)
+    errors = merge_errors(errors, new_errors)
 
     # Add some delays
     time.sleep(2)
 
     # Step 6) Copy in and update permissions task data/scripts (submission, eval_scripts, training dataset, model dataset, other per-task data (tokenizers), source_data)
-    errors += task.copy_in_task_data(vm_ip, vm_name, submission_filepath, dataset, train_dataset, leaderboard.excluded_files)
+    new_errors = task.copy_in_task_data(vm_ip, vm_name, submission_filepath, dataset, train_dataset, leaderboard.excluded_files)
+    errors = merge_errors(errors, new_errors)
 
     # Add some delays
     time.sleep(2)
 
     # Step 7) Execute submission and check errors
-    errors += task.execute_submission(vm_ip, vm_name, test_harness_config.evaluate_python_env, submission_filepath, dataset, train_dataset, leaderboard.excluded_files, info_dict, results_dirpath)
+    new_errors = task.execute_submission(vm_ip, vm_name, test_harness_config.evaluate_python_env, submission_filepath, dataset, train_dataset, leaderboard.excluded_files, info_dict, results_dirpath)
+    errors = merge_errors(errors, new_errors)
 
     # Add some delays
     time.sleep(2)
 
     # Step 8) Copy out results
-    errors += task.copy_out_results(vm_ip, vm_name, results_dirpath)
+    new_errors = task.copy_out_results(vm_ip, vm_name, results_dirpath)
+    errors = merge_errors(errors, new_errors)
 
     # Add some delays
     time.sleep(2)
 
     # Step 9) Process submissions within task
-    errors += task.process_metrics(results_dirpath, dataset, leaderboard.submission_metrics, team_name, leaderboard.name)
+    new_errors = task.process_metrics(results_dirpath, dataset, leaderboard.submission_metrics, team_name, leaderboard.name)
+    errors = merge_errors(errors, new_errors)
 
     # Step 10) Re-run basic VM cleanups
     # TODO add back in
@@ -168,6 +198,9 @@ def main(test_harness_config: TestHarnessConfig, leaderboard: Leaderboard, data_
 
     info_dict['model_execution_runtimes'] = model_execution_time_dict
 
+    end_time = time.time()
+
+    info_dict['execution_runtime'] = end_time - start_time
     json_io.write(info_file, info_dict)
 
 

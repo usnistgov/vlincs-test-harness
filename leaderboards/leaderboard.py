@@ -41,6 +41,7 @@ class Leaderboard(object):
     GENERAL_SLURM_QUEUE_NAME = 'es'
     STS_SLURM_QUEUE_NAME = 'sts'
     INFO_FILENAME = 'info.json'
+    METRIC_RESULTS_FILENAME = 'metric_results.json'
 
     SLURM_QUEUE_NAMES = [GENERAL_SLURM_QUEUE_NAME, STS_SLURM_QUEUE_NAME]
 
@@ -441,7 +442,7 @@ class Leaderboard(object):
     def get_training_dataset_name(self):
         raise NotImplementedError()
 
-    def process_metrics(self, submission_io: SubmissionIO, results_manager: ResultsManager, data_split_name: str, execution_results_dirpath: str, actor_name: str, actor_uuid: str, submission_epoch_str: str, processed_metrics: list, skip_upload_existing: bool):
+    def process_metrics(self, submission_io: SubmissionIO, results_manager: ResultsManager, data_split_name: str, execution_results_dirpath: str, actor_name: str, actor_uuid: str, submission_epoch_str: str, processed_metrics: list, skip_upload_existing: bool, pre_processed_metrics_dict: dict):
         raise NotImplementedError()
 
 class VideoLINCSLeaderboard(Leaderboard):
@@ -488,7 +489,6 @@ class VideoLINCSLeaderboard(Leaderboard):
 
                 auto_delete_submission = False
                 slurm_nice = 10
-                # TODO: Need to add logic on if the task is take home
                 if split_name == 'sts':
                     slurm_queue_name = Leaderboard.STS_SLURM_QUEUE_NAME
                     slurm_nice = 0
@@ -504,7 +504,7 @@ class VideoLINCSLeaderboard(Leaderboard):
         # TODO: Decide on metadata CSV
         #self.generate_metadata_csv()
 
-    def process_metrics(self, submission_io: SubmissionIO, results_manager: ResultsManager, data_split_name: str, execution_results_dirpath: str, actor_name: str, actor_uuid: str, submission_epoch_str: str, processed_metrics: list, skip_upload_existing: bool):
+    def process_metrics(self, submission_io: SubmissionIO, results_manager: ResultsManager, data_split_name: str, execution_results_dirpath: str, actor_name: str, actor_uuid: str, submission_epoch_str: str, processed_metrics: list, skip_upload_existing: bool, pre_processed_metrics_dict: dict):
         # Initialize error strings to return
         errors = {}
         new_processed_metric_names = []
@@ -550,7 +550,7 @@ class VideoLINCSLeaderboard(Leaderboard):
             gt_dict: typing.OrderedDict[str, typing.OrderedDict] = self.get_dataset(data_split_name).load_ground_truth()
             results = self.get_dataset(data_split_name).load_results(execution_results_dirpath)
 
-            errors += self.get_dataset(data_split_name).get_result_errors(execution_results_dirpath)
+            web_display_parse_errors += self.get_dataset(data_split_name).get_result_errors(execution_results_dirpath)
 
             # TODO: Update 'update_entry' to contain columns of interest relevant for for results df
             # TODO: Do we need a metadata_df
@@ -561,12 +561,19 @@ class VideoLINCSLeaderboard(Leaderboard):
 
             for metric_name in metrics_to_compute:
                 metric = self.submission_metrics[metric_name]
-
-                if isinstance(metric, VLINCSMetric):
+                metric_output = None
+                if pre_processed_metrics_dict is not None and metric_name in pre_processed_metrics_dict:
+                    metric_output = pre_processed_metrics_dict[metric_name]
+                    logging.info('Loading processed metrics from performer: {}'.format(metric_output))
+                elif isinstance(metric, VLINCSMetric):
                     metric_output = metric.compute(results, gt_dict, metadata_df, actor_name, self.name, data_split_name, execution_results_dirpath)
+                else:
+                    logging.warning(
+                        'Invalid metric type: {}, expected VideoLINCS for leaderboard {}'.format(type(metric), self.name))
+                    continue
 
+                if metric_output is not None:
                     new_processed_metric_names.append(metric_name)
-
                     if metric.store_result:
                         metric_result = metric_output['result']
                         if metric_result is not None:
@@ -585,31 +592,12 @@ class VideoLINCSLeaderboard(Leaderboard):
 
                         if metric.share_with_external:
                             external_share_files.extend(files)
-                else:
-                    logging.warning(
-                        'Invalid metric type: {}, expected VideoLINCS for leaderboard {}'.format(type(metric), self.name))
-                    continue
 
             # Update entry or add entry to result dataframe
             if filtered_df is not None:
                 df.loc[filtered_df.index[0], update_entry.keys()] = update_entry.values()
             else:
                 df.loc[len(df)] = update_entry
-
-            # Upload metric files with external and actor Google Drive folders
-            if len(external_share_files) > 0 or len(actor_share_files) > 0:
-                actor_submission_folder_id, external_actor_submission_folder_id = submission_io.get_submission_actor_and_external_folder_ids(
-                    actor_name, self.name, data_split_name)
-
-                if external_actor_submission_folder_id is not None:
-                    for file in external_share_files:
-                        submission_io.upload(file, folder_id=external_actor_submission_folder_id,
-                                       skip_existing=skip_upload_existing)
-
-                if actor_submission_folder_id is not None:
-                    for file in actor_share_files:
-                        submission_io.upload(file, folder_id=actor_submission_folder_id,
-                                       skip_existing=skip_upload_existing)
 
         if len(web_display_parse_errors) != 0:
             errors['web_display_parse_errors'] = web_display_parse_errors

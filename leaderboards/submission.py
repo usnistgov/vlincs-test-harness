@@ -7,6 +7,8 @@ import fcntl
 
 
 import traceback
+
+import leaderboards.metrics
 from submission_file import SubmissionFile
 from actor import Actor, ActorManager
 import slurm
@@ -28,7 +30,6 @@ class Submission(object):
             self.slurm_queue_name = leaderboard.get_slurm_queue_name(self.data_split_name)
         self.slurm_nice = leaderboard.get_slurm_nice(self.data_split_name)
         self.execution_runtime = None
-        self.model_execution_runtimes = None
         self.submission_epoch = submission_epoch
         if self.submission_epoch is None:
             self.submission_epoch = time_utils.get_current_epoch()
@@ -223,6 +224,7 @@ class Submission(object):
 
 
         info_filepath = os.path.join(self.execution_results_dirpath, Leaderboard.INFO_FILENAME)
+        metric_results_filepath = os.path.join(self.execution_results_dirpath, Leaderboard.METRIC_RESULTS_FILENAME)
         slurm_log_filepath = os.path.join(self.execution_results_dirpath, self.slurm_output_filename)
 
         ##################################################
@@ -284,25 +286,33 @@ class Submission(object):
             else:
                 self.execution_runtime = info_dict['execution_runtime']
 
-            if 'model_execution_runtimes' not in info_dict.keys():
-                self.model_execution_runtimes = dict()
-            else:
-                self.model_execution_runtimes = info_dict['model_execution_runtimes']
-
             if 'errors' not in info_dict.keys():
                 logging.error("Missing 'errors' key in info file dictionary")
             else:
-                self.web_display_execution_errors = info_dict['errors']
+                errors = info_dict['errors']
+                if isinstance(errors, dict):
+                    if 'web_display_execution_errors' in errors:
+                        self.web_display_execution_errors = errors['web_display_execution_errors']
+                    if 'web_display_parse_errors' in errors:
+                        self.web_display_parse_errors = errors['web_display_parse_errors']
+                else:
+                    logging.warning('Submission {} did not have property formatted errors'.format(str(self)))
 
                 # Check for early abort to reset actor time window
                 if 'Container Parameters' in self.web_display_execution_errors or 'Schema Header' in self.web_display_execution_errors:
                     if actor.type == 'performer':
                         actor.reset_leaderboard_time_window(leaderboard.name, self.data_split_name)
 
+
+        # Capture any metrics computed within slurm job
+        all_metric_results = None
+        if os.path.exists(metric_results_filepath):
+            all_metric_results = json_io.read(metric_results_filepath)
+
         ##################################################
         # Process the metrics from the submission
         ##################################################
-        error_dict, processed_metric_names = leaderboard.process_metrics(submission_io, results_manager, self.data_split_name, self.execution_results_dirpath, actor.name, actor.uuid, self.get_submission_epoch_str_primary(), self.processed_metric_names, skip_upload_existing=False)
+        error_dict, processed_metric_names = leaderboard.process_metrics(submission_io, results_manager, self.data_split_name, self.execution_results_dirpath, actor.name, actor.uuid, self.get_submission_epoch_str_primary(), self.processed_metric_names, skip_upload_existing=False, pre_processed_metrics_dict=all_metric_results)
 
         self.processed_metric_names.extend(processed_metric_names)
 
@@ -549,7 +559,7 @@ class Submission(object):
 
     def compute_missing_metrics(self, results_manager: ResultsManager, actor: Actor, leaderboard: Leaderboard, submission_io: SubmissionIO):
         if self.has_new_metrics(leaderboard):
-            errors, new_processed_metrics = leaderboard.process_metrics(submission_io, results_manager, self.data_split_name, self.execution_results_dirpath, actor.name, actor.uuid, self.get_submission_epoch_str_primary(), self.processed_metric_names, skip_upload_existing=False)
+            errors, new_processed_metrics = leaderboard.process_metrics(submission_io, results_manager, self.data_split_name, self.execution_results_dirpath, actor.name, actor.uuid, self.get_submission_epoch_str_primary(), self.processed_metric_names, skip_upload_existing=False, pre_processed_metrics_dict=None)
             self.processed_metric_names.extend(new_processed_metrics)
 
         # TODO: Should we update the errors for the submission (will have to be careful to not repeat errors)
@@ -874,7 +884,7 @@ class SubmissionManager(object):
                         processed_metrics = submission.processed_metric_names
 
                     # This should recompute all metrics
-                    errors, new_processed_metrics = leaderboard.process_metrics(submission_io, results_manager, submission.data_split_name, submission.execution_results_dirpath, actor.name, actor.uuid, submission.get_submission_epoch_str_primary(), processed_metrics=processed_metrics, skip_upload_existing=skip_upload_existing)
+                    errors, new_processed_metrics = leaderboard.process_metrics(submission_io, results_manager, submission.data_split_name, submission.execution_results_dirpath, actor.name, actor.uuid, submission.get_submission_epoch_str_primary(), processed_metrics=processed_metrics, skip_upload_existing=skip_upload_existing, pre_processed_metrics_dict=None)
 
                     if new_only:
                         submission.processed_metric_names.extend(new_processed_metrics)

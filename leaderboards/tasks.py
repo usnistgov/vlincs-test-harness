@@ -147,27 +147,27 @@ class TakeHomeTask(Task):
         pass
 
     def run_basic_checks(self, vm_ip, vm_name):
-        errors = ''
+        errors = {}
         return errors
 
     def run_submission_checks(self, submission_filepath, dataset: Dataset):
-        errors = ''
+        errors = {}
         return errors
 
     def copy_in_env(self, vm_ip, vm_name, test_harness_config: TestHarnessConfig):
-        errors = ''
+        errors = {}
         return errors
 
     def copy_in_task_data(self, vm_ip, vm_name, submission_filepath: str, dataset: Dataset, training_dataset: Dataset, excluded_files: List[str]):
-        errors = ''
+        errors = {}
         return errors
 
     def execute_submission(self, vm_ip, vm_name, python_execution_env_filepath: str, submission_filepath: str, dataset: Dataset, training_dataset: Dataset, excluded_files: List[str], info_dict: dict, results_dirpath: str):
-        errors = ''
+        errors = {}
         shutil.unpack_archive(submission_filepath, results_dirpath)
 
         if not dataset.verify_results(results_dirpath):
-            errors += ':Missing Results:'
+            errors['web_display_execution_errors'] = ':Missing Results:'
 
         return errors
 
@@ -178,17 +178,21 @@ class TakeHomeTask(Task):
         return []
 
     def copy_out_results(self, vm_ip, vm_name, results_dirpath):
-        errors = ''
+        errors = {}
         return errors
 
     def cleanup_vm(self, vm_ip, vm_name):
-        errors = ''
+        errors = {}
         return errors
 
     def process_metrics(self, results_dirpath: str, dataset: Dataset, metrics: typing.Dict[str, Metric], actor_name: str, leaderboard_name: str):
-        errors = ''
+        errors = {}
+
         results = dataset.load_results(results_dirpath)
-        errors += dataset.get_result_errors(results_dirpath)
+        result_errors = dataset.get_result_errors(results_dirpath)
+        if result_errors != '':
+            errors['web_display_parse_errors'] = result_errors
+
         ground_truth = dataset.load_ground_truth()
         metadata_df = None
 
