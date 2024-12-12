@@ -218,7 +218,7 @@ class Submission(object):
         self.web_display_execution_errors = ""
 
         ##################################################
-        # Fetch (or create) team directory on google drive
+        # Fetch (or create) team directory on submission system
         ##################################################
         actor_submission_folder_id, external_actor_submission_folder_id = submission_io.get_submission_actor_and_external_folder_ids(actor.name, leaderboard.name, self.data_split_name)
 
@@ -260,7 +260,7 @@ class Submission(object):
                     logging.info('Originally Submitted File: "{}, id: {}"'.format(orig_g_file.name, orig_g_file.id))
                     logging.info('Updated Submission with Executed File: "{}"'.format(self.g_file))
                 else:
-                    logging.info('Drive file did not change between original submission and execution.')
+                    logging.info('Submission file did not change between original submission and execution.')
             except:
                 msg = 'Failed to deserialize file: "{}".\n{}'.format(submission_metadata_filepath,
                                                                      traceback.format_exc())
@@ -321,7 +321,7 @@ class Submission(object):
 
 
         ##################################################
-        # upload log file to drive
+        # upload log file to submission io
         ##################################################
         try:
             if actor_submission_folder_id is not None and os.path.exists(slurm_log_filepath):

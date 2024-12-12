@@ -34,7 +34,7 @@ def process_new_submission(test_harness_config: TestHarnessConfig, submission_io
 
     logging.info("Checking for new submissions from {}.".format(actor.name))
 
-    # query drive for a submission by this actor
+    # query submission by this actor
     actor_file_list = submission_io.query_by_email(actor.email)
 
     # Search for entries that contain a valid leaderboard name and dataset split
