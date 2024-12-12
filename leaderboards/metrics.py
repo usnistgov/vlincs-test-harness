@@ -27,6 +27,9 @@ class Metric(object):
     def get_name(self):
         raise NotImplementedError()
 
+    def get_metric_tooltip(self, name):
+        return None
+
     # asc or desc for ascending or descending, respectively
     def get_sort_order(self):
         return 'desc'
@@ -78,9 +81,29 @@ class TrackEvalMetric(VLINCSMetric):
                                     'DetRe': 'DetRe',
                                     'DetPr': 'DetPr',
                                     'LocA': 'LocA',
-                                    'FP_per_frame': 'FAF',
+                                    'FP_per_frame': 'FP_Frame',
                                     'Frag': 'Frag'}
 
+        self.metric_tooltip_map = {
+            'MOTA':  'Multi-Object Tracking Accuracy',
+            'IDF1': 'ID F1 Score',
+            'HOTA': 'High Order Tracking Accuracy',
+            'MT': 'Ratio of Mostly Tracked Trajectories',
+            'ML': 'Ratio of Mostly Lost Trajectories',
+            'FP': 'Number of False Positives',
+            'FN': 'Number of False Negatives',
+            'Rcll': 'Recall',
+            'Prcn': 'Precision',
+            'AssA': 'Association Accuracy',
+            'DetA': 'Detection Accuracy',
+            'AssRe': 'Association Recall',
+            'AssPr': 'Association Precision',
+            'DetRe': 'Detection Recall',
+            'DetPr': 'Detection Precision',
+            'LocA': 'Localization Accuracy',
+            'FP_Frame': 'False Positives Per Frame',
+            'Frag': 'Number of Track Fragmentations'
+        }
 
         self.metric_threshold = 0.5
 
@@ -89,6 +112,11 @@ class TrackEvalMetric(VLINCSMetric):
 
     def get_name(self):
         return 'TrackEvalMetric'
+
+    def get_metric_tooltip(self, name):
+        if name in self.metric_tooltip_map:
+            return self.metric_tooltip_map[name]
+        return None
 
     # TODO: Update per metric name
     def compare(self, computed, baseline, result_key_name=None):

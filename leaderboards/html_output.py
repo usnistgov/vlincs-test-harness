@@ -201,7 +201,9 @@ var sort_col;\n
             for leaderboard in archive_leaderboards:
                 content += get_leaderboard_javascript_content(leaderboard)
 
+            content += """  $('[data-toggle="tooltip"]').tooltip();\n"""
             content += "$('.dataTables_length').addClass('bs-select');\n});"
+
             with open(table_javascript_filepath, 'w') as f:
                 f.write(content)
 

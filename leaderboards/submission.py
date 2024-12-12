@@ -704,7 +704,7 @@ class SubmissionManager(object):
         df = leaderboard.load_results_df(results_manager)
 
         with a.div(klass='card-body card-body-cascade pb-0'):
-            a.h2(klass='pb-q card-title', _t='Best Results based on {}'.format(evaluation_metric_name))
+            a.h2(klass='pb-q card-title', _t='Best Results based on {}'.format(evaluation_metric_sub_name))
             with a.div(klass='table-responsive'):
                 with a.table(id='{}-{}-results'.format(leaderboard.name, data_split_name), klass='table table-striped table-bordered table-sm'):
                     with a.thead():
@@ -714,7 +714,11 @@ class SubmissionManager(object):
                                 metric_result_keys = metric.get_result_keys()
                                 for result_key in metric_result_keys:
                                     if metric.write_html:
-                                        a.th(klass='th-sm', _t=result_key)
+                                        tooltip_text = metric.get_metric_tooltip(result_key)
+                                        if tooltip_text is None:
+                                            a.th(klass='th-sm',  _t=result_key)
+                                        else:
+                                            a.th(klass='th-sm', contens='data-mdb-tooltip-init="" title="{}"'.format(tooltip_text), _t=result_key)
 
                             a.th(klass='th-sm', _t='Runtime (s)')
                             a.th(klass='th-sm', _t='Submission Timestamp')
@@ -789,7 +793,11 @@ class SubmissionManager(object):
                                 metric_result_keys = metric.get_result_keys()
                                 for result_key in metric_result_keys:
                                     if metric.write_html:
-                                        a.th(klass='th-sm', _t=result_key)
+                                        tooltip_text = metric.get_metric_tooltip(result_key)
+                                        if tooltip_text is None:
+                                            a.th(klass='th-sm',  _t=result_key)
+                                        else:
+                                            a.th(klass='th-sm', contens='data-mdb-tooltip-init="" title="{}"'.format(tooltip_text), _t=result_key)
 
                             a.th(klass='th-sm', _t='Runtime (s)')
                             a.th(klass='th-sm', _t='Submission Timestamp')
