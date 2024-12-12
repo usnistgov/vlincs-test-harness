@@ -718,7 +718,7 @@ class SubmissionManager(object):
                                         if tooltip_text is None:
                                             a.th(klass='th-sm',  _t=result_key)
                                         else:
-                                            a.th(klass='th-sm', data_mdb_tooltip_init='""', title='"{}"'.format(tooltip_text), _t=result_key)
+                                            a.th(klass='th-sm', data_mdb_tooltip_init='', title='{}'.format(tooltip_text), _t=result_key)
 
                             a.th(klass='th-sm', _t='Runtime (s)')
                             a.th(klass='th-sm', _t='Submission Timestamp')
@@ -797,7 +797,7 @@ class SubmissionManager(object):
                                         if tooltip_text is None:
                                             a.th(klass='th-sm',  _t=result_key)
                                         else:
-                                            a.th(klass='th-sm', data_mdb_tooltip_init='""', title='"{}"'.format(tooltip_text), _t=result_key)
+                                            a.th(klass='th-sm', data_mdb_tooltip_init='', title='{}'.format(tooltip_text), _t=result_key)
 
                             a.th(klass='th-sm', _t='Runtime (s)')
                             a.th(klass='th-sm', _t='Submission Timestamp')
