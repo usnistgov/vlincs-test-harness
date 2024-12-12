@@ -125,7 +125,7 @@ class TrackEvalMetric(VLINCSMetric):
         for metric_name, metric_sub_names in self.metric_result_dict.items():
             for metric_sub_name in metric_sub_names:
                 metric_result = output_res['VLINCSTrackEvalDataset'][actor_name]['COMBINED_SEQ']['person'][metric_name][metric_sub_name]
-                if len(metric_result) > 1:
+                if isinstance(metric_result, np.ndarray):
                     metric_result = float(np.average(metric_result).item())
                 else:
                     metric_result = float(metric_result)
@@ -136,7 +136,7 @@ class TrackEvalMetric(VLINCSMetric):
 
         # Apply ordering
         for metric_sub_name in self.metric_naming_order.keys():
-            final_result_ret[metric_sub_name] = result_ret[metric_sub_name]
+            final_result_ret[self.metric_naming_order[metric_sub_name]] = result_ret[metric_sub_name]
 
         # TODO: Handle plots generated...
         return {'result': final_result_ret, 'files': None}

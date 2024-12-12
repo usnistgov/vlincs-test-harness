@@ -25,7 +25,17 @@ class VLINCSTrackEvalDataset(_BaseDataset):
         self.valid_classes = ['person']
         self.class_list = [cls.lower() if cls.lower() in self.valid_classes else None
                        for cls in classes_to_eval]
+
+        self.class_name_to_class_id = {'person': 1, 'person_on_vehicle': 2, 'car': 3, 'bicycle': 4, 'motorbike': 5,
+                                       'non_mot_vehicle': 6, 'static_person': 7, 'distractor': 8, 'occluder': 9,
+                                       'occluder_on_ground': 10, 'occluder_full': 11, 'reflection': 12, 'crowd': 13}
+        self.valid_class_numbers = list(self.class_name_to_class_id.values())
+
         self.benchmark = 'vlincs'
+
+    @staticmethod
+    def get_default_dataset_config():
+        return {}
 
     def get_display_name(self, tracker):
         return self.actor_name
@@ -51,7 +61,7 @@ class VLINCSTrackEvalDataset(_BaseDataset):
             data_keys += ['tracker_confidences']
 
         raw_data = {key: [None] * num_timesteps for key in data_keys}
-        current_time_keys = [str( t+ 1) for t in range(num_timesteps)]
+        current_time_keys = [int(t+ 1) for t in range(num_timesteps)]
 
         unique_frames = set(df['frame'].unique())
 
@@ -67,20 +77,20 @@ class VLINCSTrackEvalDataset(_BaseDataset):
                     [str(x) + ', ' for x in extra_time_keys]))
 
         for t in range(num_timesteps):
-            time_key = str(t+1)
+            time_key = int(t+1)
 
             if time_key in unique_frames:
                 frame_df = df[df['frame'] == time_key]
                 det_columns = ['bb_left', 'bb_top', 'bb_width', 'bb_height']
 
-                raw_data['dets'][t] = frame_df[det_columns].to_numpy()
-                raw_data['ids'][t] = frame_df['ids'].to_numpy()
+                raw_data['dets'][t] = frame_df[det_columns].to_numpy(dtype=float)
+                raw_data['ids'][t] = frame_df['id'].to_numpy(dtype=int)
                 raw_data['classes'][t] = frame_df['class'].to_numpy(dtype=int)
                 if is_gt:
                     gt_extras_dict = {'zero_marked': frame_df['conf'].to_numpy(dtype=int)}
                     raw_data['gt_extras'][t] = gt_extras_dict
                 else:
-                    raw_data['tracker_confidences'][t] = frame_df['conf'].to_numpy()
+                    raw_data['tracker_confidences'][t] = frame_df['conf'].to_numpy(dtype=float)
             else:
                 raw_data['dets'][t] = np.empty((0, 4))
                 raw_data['ids'][t] = np.empty(0).astype(int)
